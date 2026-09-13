@@ -75,7 +75,49 @@ class AegisStore(context: Context) {
         ).takeIf { it.isActive(now) }
     }.getOrElse { clearSession(); null }
 
-    fun clearSession() { preferences.edit().remove(SESSION).apply() }
+    fun updateProgress(streak: Int, tokens: Int? = null) {
+        val session = activeSession() ?: return
+        saveSession(session.copy(streak = streak.coerceAtLeast(0)))
+        if (tokens != null) preferences.edit().putInt(TOKENS, tokens.coerceAtLeast(0)).apply()
+    }
+
+    fun tokens(): Int = preferences.getInt(TOKENS, 0).coerceAtLeast(0)
+
+    fun spendToken(): Boolean {
+        val count = tokens()
+        if (count <= 0) return false
+        preferences.edit().putInt(TOKENS, count - 1).apply()
+        return true
+    }
+
+    fun clearSession() {
+        preferences.edit()
+            .remove(SESSION)
+            .remove(RECOVERY_VERIFIER)
+            .remove(EXIT_REQUESTED_AT)
+            .remove(EXIT_AVAILABLE_AT)
+            .apply()
+    }
+
+    fun saveRecoveryVerifier(verifier: String) {
+        preferences.edit().putString(RECOVERY_VERIFIER, verifier).apply()
+    }
+
+    fun recoveryVerifier(): String? = preferences.getString(RECOVERY_VERIFIER, null)
+
+    fun saveExitRequest(requestedAt: Instant, availableAt: Instant) {
+        preferences.edit()
+            .putLong(EXIT_REQUESTED_AT, requestedAt.toEpochMilli())
+            .putLong(EXIT_AVAILABLE_AT, availableAt.toEpochMilli())
+            .apply()
+    }
+
+    fun exitAvailableAt(): Instant? = preferences.getLong(EXIT_AVAILABLE_AT, 0L)
+        .takeIf { it > 0L }?.let(Instant::ofEpochMilli)
+
+    fun cancelExitRequest() {
+        preferences.edit().remove(EXIT_REQUESTED_AT).remove(EXIT_AVAILABLE_AT).apply()
+    }
 
     fun grantTarget(packageName: String, until: Instant) = preferences.edit()
         .putLong("grant:$packageName", until.toEpochMilli()).apply()
@@ -91,5 +133,9 @@ class AegisStore(context: Context) {
         const val NAME = "aegis_state_v1"
         const val PROFILE = "profile"
         const val SESSION = "session"
+        const val RECOVERY_VERIFIER = "recovery_verifier"
+        const val EXIT_REQUESTED_AT = "exit_requested_at"
+        const val EXIT_AVAILABLE_AT = "exit_available_at"
+        const val TOKENS = "sincerity_tokens"
     }
 }

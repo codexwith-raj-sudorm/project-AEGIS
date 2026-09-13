@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.jarvis.aegis.accountability.AccountabilityEvent
+import com.jarvis.aegis.accountability.AccountabilityMessages
 import com.jarvis.aegis.challenge.AnswerValidator
 import com.jarvis.aegis.challenge.ChallengeGenerator
 import com.jarvis.aegis.challenge.ValidationResult
@@ -47,10 +49,14 @@ class AegisLockActivity : ComponentActivity() {
                 var challenge by remember { mutableStateOf(generator.arithmetic()) }
                 var answer by remember { mutableStateOf("") }
                 var seconds by remember(challenge.id) { mutableIntStateOf(challenge.timeLimitSeconds) }
+                val store = remember { AegisStore(this@AegisLockActivity) }
+                val profile = remember { store.profile() }
+                val accountability = remember { AccountabilityMessages() }
                 var status by remember { mutableStateOf("ACCESS DENIED. COGNITIVE VERIFICATION REQUIRED.") }
                 LaunchedEffect(challenge.id) {
                     while (seconds > 0) { delay(1_000); seconds-- }
-                    status = "TIME EXPIRED. NEW CHALLENGE GENERATED."
+                    store.updateProgress(0)
+                    status = accountability.message(profile.motivation, profile.ageBand, AccountabilityEvent.TIMEOUT)
                     challenge = generator.arithmetic()
                     answer = ""
                 }
@@ -72,7 +78,10 @@ class AegisLockActivity : ComponentActivity() {
                         when (AnswerValidator().validate(challenge, answer)) {
                             ValidationResult.Correct -> {
                                 completed = true
-                                AegisStore(this@AegisLockActivity).grantTarget(target, Instant.now().plusSeconds(15 * 60))
+                                val nextStreak = (store.activeSession()?.streak ?: 0) + 1
+                                if (nextStreak >= 20) store.updateProgress(0, store.tokens() + 1)
+                                else store.updateProgress(nextStreak)
+                                store.grantTarget(target, Instant.now().plusSeconds(15 * 60))
                                 packageManager.getLaunchIntentForPackage(target)?.let {
                                     it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     startActivity(it)
@@ -80,6 +89,7 @@ class AegisLockActivity : ComponentActivity() {
                                 finish()
                             }
                             else -> {
+                                store.updateProgress(0)
                                 status = "INCORRECT. STREAK RESET. NEW CHALLENGE."
                                 challenge = generator.arithmetic()
                                 answer = ""
