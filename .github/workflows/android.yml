@@ -57,7 +57,7 @@ jobs:
           grep -E "(^e: |error: |FAILURE:|What went wrong)" build.log | tail -n 50 | while IFS= read -r line; do
             echo "::error::$line"
           done
-          diagnostic=$(tail -n 100 build.log | tail -c 6000 | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+          diagnostic=$(awk '/FAILURE: Build failed/{capture=1} capture{print}' build.log | head -n 60 | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
           echo "::error title=Gradle failure detail::$diagnostic"
 
       - name: Upload build diagnostics
