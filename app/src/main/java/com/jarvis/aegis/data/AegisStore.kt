@@ -6,6 +6,8 @@ import com.jarvis.aegis.profile.LearnerProfile
 import com.jarvis.aegis.profile.MotivationProfile
 import com.jarvis.aegis.recovery.AttemptState
 import com.jarvis.aegis.security.SecurePreferences
+import com.jarvis.aegis.session.ChallengeDifficulty
+import com.jarvis.aegis.session.ConsentRecord
 import com.jarvis.aegis.session.FocusSession
 import com.jarvis.aegis.session.SessionMode
 import com.jarvis.aegis.session.SessionPolicy
@@ -41,6 +43,14 @@ class AegisStore(context: Context) {
         ).let { it.copy(motivation = it.motivation.takeIf(it.allowedMotivations::contains) ?: MotivationProfile.REFLECTIVE) }
     }.getOrElse { LearnerProfile() }
 
+    fun saveConsent(record: ConsentRecord) = secure.putString(CONSENT, JSONObject().apply {
+        put("sessionId", record.sessionId.toString())
+        put("policyVersion", record.policyVersion)
+        put("policyHash", record.policyHash)
+        put("confirmedAt", record.confirmedAt.toString())
+        put("deviceAuthenticated", record.deviceAuthenticated)
+    }.toString())
+
     fun saveSession(session: FocusSession) = secure.putString(SESSION, JSONObject().apply {
         put("id", session.id.toString())
         put("mode", session.policy.mode.name)
@@ -50,6 +60,8 @@ class AegisStore(context: Context) {
         put("essential", JSONArray(session.policy.essentialPackages.toList()))
         put("exitDelaySeconds", session.policy.exitDelay.seconds)
         put("amnesty", session.policy.amnestyEnabled)
+        put("challengeSubjects", JSONArray(session.policy.challengeSubjects.toList()))
+        put("difficulty", session.policy.difficulty.name)
         put("streak", session.streak)
         put("interrupted", session.interrupted)
     }.toString())
@@ -67,6 +79,8 @@ class AegisStore(context: Context) {
             essentialPackages = json.getJSONArray("essential").toStringSet(),
             exitDelay = Duration.ofSeconds(json.optLong("exitDelaySeconds", 300)),
             amnestyEnabled = json.optBoolean("amnesty", true),
+            challengeSubjects = json.optJSONArray("challengeSubjects")?.toStringSet() ?: setOf("Mathematics"),
+            difficulty = ChallengeDifficulty.valueOf(json.optString("difficulty", ChallengeDifficulty.INTERMEDIATE.name)),
         )
         FocusSession(
             id = UUID.fromString(json.getString("id")), policy = policy,
@@ -90,7 +104,7 @@ class AegisStore(context: Context) {
         return true
     }
 
-    fun clearSession() = secure.remove(SESSION, RECOVERY_VERIFIER, EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT, RECOVERY_ATTEMPTS)
+    fun clearSession() = secure.remove(SESSION, CONSENT, RECOVERY_VERIFIER, EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT, RECOVERY_ATTEMPTS)
     fun saveRecoveryVerifier(verifier: String) = secure.putString(RECOVERY_VERIFIER, verifier)
     fun recoveryVerifier(): String? = secure.getString(RECOVERY_VERIFIER)
 
@@ -135,6 +149,7 @@ class AegisStore(context: Context) {
         const val NAME = "aegis_state_v1"
         const val PROFILE = "profile"
         const val SESSION = "session"
+        const val CONSENT = "consent_record"
         const val RECOVERY_VERIFIER = "recovery_verifier"
         const val EXIT_REQUESTED_AT = "exit_requested_at"
         const val EXIT_AVAILABLE_AT = "exit_available_at"

@@ -5,6 +5,7 @@ import java.time.Instant
 import java.util.UUID
 
 enum class SessionMode { STANDARD, EXTREME }
+enum class ChallengeDifficulty { FOUNDATION, INTERMEDIATE, ADVANCED }
 
 data class SessionPolicy(
     val mode: SessionMode,
@@ -13,6 +14,8 @@ data class SessionPolicy(
     val essentialPackages: Set<String>,
     val exitDelay: Duration = Duration.ofMinutes(5),
     val amnestyEnabled: Boolean = true,
+    val challengeSubjects: Set<String> = setOf("Mathematics"),
+    val difficulty: ChallengeDifficulty = ChallengeDifficulty.INTERMEDIATE,
 ) {
     init {
         require(!duration.isNegative && !duration.isZero) { "Duration must be positive" }
@@ -25,6 +28,8 @@ data class SessionPolicy(
         require(targetPackages.intersect(essentialPackages).isEmpty()) {
             "Essential packages cannot be targets"
         }
+        require(targetPackages.isNotEmpty()) { "At least one target is required" }
+        require(challengeSubjects.isNotEmpty()) { "At least one challenge subject is required" }
     }
 }
 

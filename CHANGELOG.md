@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — 2026-09-13
+
+- Add multi-step Standard and Extreme session configuration.
+- Add target and essential-app selection with overlap prevention.
+- Add challenge subject, difficulty, Amnesty, duration, and exit-delay policies.
+- Add one-time recovery-code re-entry and randomized activation phrases.
+- Add a 30-second Extreme Mode cancellation window.
+- Add biometric or device-credential authorization for Extreme Mode.
+- Store a versioned SHA-256 policy consent record with each activated session.
+
 ## 0.3.0 — 2026-09-13
 
 - Encrypt profiles, sessions, recovery verifiers, exit state, and token balances with an Android Keystore AES-GCM key.
