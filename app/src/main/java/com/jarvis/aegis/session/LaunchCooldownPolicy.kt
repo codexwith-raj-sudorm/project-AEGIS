@@ -11,7 +11,7 @@ data class LaunchAttemptState(
 )
 
 class LaunchCooldownPolicy {
-    fun register(previous: LaunchAttemptState, now: Instant): LaunchAttemptState {
+    fun register(previous: LaunchAttemptState, now: Instant, mode: SessionMode = SessionMode.STRICT): LaunchAttemptState {
         val attempts = if (Duration.between(previous.windowStartedAt, now) > WINDOW) 1 else previous.attempts + 1
         val started = if (attempts == 1) now else previous.windowStartedAt
         val seconds = when (attempts) {
@@ -21,7 +21,8 @@ class LaunchCooldownPolicy {
             5 -> 30L
             else -> min(300L, 30L * (attempts - 4))
         }
-        return LaunchAttemptState(attempts, started, now.plusSeconds(seconds))
+        val adjusted = min(300L, seconds * mode.rules.cooldownMultiplier)
+        return LaunchAttemptState(attempts, started, now.plusSeconds(adjusted))
     }
 
     fun remaining(state: LaunchAttemptState, now: Instant): Duration =

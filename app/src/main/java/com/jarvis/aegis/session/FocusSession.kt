@@ -4,7 +4,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
-enum class SessionMode { STANDARD, EXTREME }
+enum class SessionMode { STANDARD, STRICT, EXTREME }
 enum class ChallengeDifficulty { FOUNDATION, INTERMEDIATE, ADVANCED }
 
 data class SessionPolicy(

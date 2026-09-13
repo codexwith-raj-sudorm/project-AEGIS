@@ -58,10 +58,16 @@ fun SessionSetupScreen(
     var packageSelection by remember { mutableStateOf(PackageSelection.TARGETS) }
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("> SESSION_ENROLLMENT // ${mode.name}")
+        Text("> SESSION_ENROLLMENT // ${if (mode == SessionMode.EXTREME) "HARD" else mode.name}")
+        Text(when (mode) {
+            SessionMode.STANDARD -> "LEVEL 1: CHALLENGE GATE // IMMEDIATE IN-APP EXIT"
+            SessionMode.STRICT -> "LEVEL 2: STREAK RESET + COOLDOWNS // DELAYED EXIT OR KEY"
+            SessionMode.EXTREME -> "LEVEL 3: MAXIMUM PERSONAL MODE // RECOVERY KEY ONLY"
+        })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(mode == SessionMode.STANDARD, { mode = SessionMode.STANDARD }, { Text("STANDARD") })
-            FilterChip(mode == SessionMode.EXTREME, { mode = SessionMode.EXTREME }, { Text("EXTREME") })
+            FilterChip(mode == SessionMode.STRICT, { mode = SessionMode.STRICT }, { Text("STRICT") })
+            FilterChip(mode == SessionMode.EXTREME, { mode = SessionMode.EXTREME; amnesty = false }, { Text("HARD") })
         }
         Text("DURATION: ${minutes.toInt()} MINUTES")
         Slider(minutes, { minutes = it }, valueRange = 15f..if (mode == SessionMode.EXTREME) 1440f else 240f)
@@ -80,8 +86,8 @@ fun SessionSetupScreen(
             }
         }
         Row {
-            Checkbox(amnesty, { amnesty = it })
-            Text("ALLOW SINCERITY POINTS", Modifier.padding(top = 12.dp))
+            Checkbox(amnesty, { amnesty = it }, enabled = mode != SessionMode.EXTREME)
+            Text(if (mode == SessionMode.EXTREME) "AMNESTY DISABLED IN HARD MODE" else "ALLOW SINCERITY POINTS", Modifier.padding(top = 12.dp))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(packageSelection == PackageSelection.TARGETS, { packageSelection = PackageSelection.TARGETS }, { Text("TARGETS (${targets.size})") })
@@ -112,7 +118,7 @@ fun SessionSetupScreen(
                     targetPackages = targets,
                     essentialPackages = essential,
                     exitDelay = Duration.ofMinutes(exitDelay.toLong()),
-                    amnestyEnabled = amnesty,
+                    amnestyEnabled = amnesty && mode != SessionMode.EXTREME,
                     challengeSubjects = selectedSubjects,
                     difficulty = difficulty,
                 ),

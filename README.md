@@ -36,25 +36,33 @@ For ordinary, user-owned Android devices.
 - Immediate in-app session cancellation.
 - Intended for general daily use.
 
-### 2.2 Extreme Mode
+### 2.2 Strict Mode
+
+For users who want stronger consequences without key-only decommissioning.
+
+- Device authentication and a 15-second final activation countdown.
+- Context switching invalidates the challenge and resets the streak.
+- Repeated launches trigger escalating cooldowns.
+- In-app decommissioning requires either the configured delay or owner recovery key.
+- Sincerity Points remain configurable.
+
+### 2.3 Hard Mode
 
 The strictest safe mode available on an unmanaged personal device.
 
 - Fixed-duration session established before activation.
 - Target list cannot be weakened during the session.
-- App switching and persistent focus loss invalidate the current challenge.
-- Split-screen and picture-in-picture invalidate the current challenge.
+- App switching, split-screen, and picture-in-picture invalidate the challenge and reset the streak.
 - Screenshots and ordinary screen recording are blocked with `FLAG_SECURE`.
-- Copy, paste, drag-and-drop, autofill, and content insertion are disabled in challenge inputs.
-- Incorrect answers and abandoned challenges reset the active streak.
-- Repeated target launches create progressively longer cooldowns.
+- Repeated target launches receive doubled cooldown pressure.
 - Session state survives process death and reboot.
-- Amnesty can be limited or disabled at enrollment.
-- Exit remains possible through a delayed emergency procedure or recovery code.
+- Amnesty is disabled.
+- In-app decommissioning is available only through the unique owner recovery key.
+- Automatic expiration and crash/corruption Fail-Open remain mandatory safety boundaries.
 
-Extreme Mode does **not** block Android Settings, App Info, permission controls, Safe Mode, or uninstallation. If required permissions are revoked, AEGIS records the session as interrupted and stops enforcement safely.
+Hard Mode does **not** block Android Settings, App Info, permission controls, Safe Mode, force-stop, data clearing, or uninstallation. Those owner controls cannot be eliminated on an unmanaged Android device.
 
-### 2.3 Managed Mode — future product flavor
+### 2.4 Managed Mode — future product flavor
 
 For dedicated devices deliberately provisioned with AEGIS as Device Owner.
 
@@ -67,25 +75,25 @@ Accessibility must never be used to imitate unavailable Device Owner powers.
 
 ---
 
-## 3. Extreme Mode enrollment
+## 3. Strict and Hard Mode enrollment
 
-Extreme Mode requires a deliberate activation ceremony:
+Strict and Hard modes require a deliberate activation ceremony:
 
 1. Display a plain-language behavior and recovery summary.
 2. Select target apps, duration, subjects, difficulty, and essential-app exemptions.
-3. Choose whether Amnesty Tokens are available.
-4. Select a delayed-exit period between 1 and 10 minutes.
+3. Choose whether Amnesty Tokens are available in Strict Mode; Hard Mode disables them.
+4. Select a delayed-exit period for Strict Mode; Hard Mode uses key-only in-app decommissioning.
 5. Generate a one-time owner recovery code and require confirmation that it was saved.
 6. Authenticate with `BiometricPrompt` or the device credential.
 7. Type a randomized confirmation phrase.
 8. Complete a 30-second cancellation countdown.
 9. Persist the signed session configuration and activate enforcement.
 
-Initial releases limit Extreme sessions to **24 hours**. Longer sessions require later safety review.
+Initial releases limit Hard sessions to **24 hours**. Longer sessions require later safety review.
 
 The confirmation screen must state:
 
-> Extreme Mode aggressively interrupts selected applications until the displayed expiration time. Leaving a challenge may destroy progress and reset your streak. Screenshots are disabled. A delayed emergency exit and owner recovery code remain available. On an unmanaged device, Android still permits permission revocation, force-stop, uninstall, Safe Mode, and factory reset.
+> Hard Mode aggressively interrupts selected applications until the displayed expiration time. Leaving a challenge may destroy progress and reset your streak. Screenshots are disabled. In-app decommissioning requires your unique owner recovery key. Automatic expiration and safety Fail-Open remain active. On an unmanaged device, Android still permits permission revocation, force-stop, data clearing, uninstall, Safe Mode, and factory reset.
 
 Consent records include the policy version, session configuration hash, activation time, expiration time, and authentication result. Consent is not a waiver for unsafe behavior.
 

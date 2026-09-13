@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0 — 2026-09-13
+
+- Add Standard, Strict, and Hard blocking levels with explicit enforcement rules.
+- Make Standard sessions immediately cancellable and Strict sessions delay-or-key protected.
+- Make Hard sessions key-only for in-app decommissioning while preserving automatic expiry and safety Fail-Open.
+- Disable Amnesty in Hard mode and require device authentication for Strict and Hard enrollment.
+- Scale repeated-launch cooldowns and context-switch streak consequences by blocking level.
+
 ## 0.9.0 — 2026-09-13
 
 - Add fully on-device ML Kit OCR for imported study-note images.

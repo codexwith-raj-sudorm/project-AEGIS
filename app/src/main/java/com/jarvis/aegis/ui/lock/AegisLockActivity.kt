@@ -31,6 +31,7 @@ import com.jarvis.aegis.challenge.ChallengeGenerator
 import com.jarvis.aegis.challenge.ValidationResult
 import com.jarvis.aegis.data.AegisStore
 import com.jarvis.aegis.recovery.WatchdogManager
+import com.jarvis.aegis.session.rules
 import com.jarvis.aegis.ui.components.AegisButton
 import com.jarvis.aegis.ui.theme.AegisTheme
 import kotlinx.coroutines.delay
@@ -112,7 +113,7 @@ class AegisLockActivity : ComponentActivity() {
                             }
                         }
                     }, enabled = cooldownSeconds == 0)
-                    if (session.policy.amnestyEnabled && tokenBalance > 0) {
+                    if (session.policy.amnestyEnabled && session.policy.mode.rules.allowAmnesty && tokenBalance > 0) {
                         AegisButton("[ SPEND 1 SINCERITY POINT // 15 MINUTES ]", {
                             if (store.spendToken()) {
                                 tokenBalance--
@@ -141,7 +142,8 @@ class AegisLockActivity : ComponentActivity() {
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (!completed) {
-            AegisStore(this).updateProgress(0)
+            val store = AegisStore(this)
+            if (store.activeSession()?.policy?.mode?.rules?.resetStreakOnContextSwitch == true) store.updateProgress(0)
             finish()
         }
     }
@@ -149,7 +151,8 @@ class AegisLockActivity : ComponentActivity() {
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
         super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
         if (isInMultiWindowMode && !completed) {
-            AegisStore(this).updateProgress(0)
+            val store = AegisStore(this)
+            if (store.activeSession()?.policy?.mode?.rules?.resetStreakOnContextSwitch == true) store.updateProgress(0)
             finish()
         }
     }
@@ -157,7 +160,8 @@ class AegisLockActivity : ComponentActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode && !completed) {
-            AegisStore(this).updateProgress(0)
+            val store = AegisStore(this)
+            if (store.activeSession()?.policy?.mode?.rules?.resetStreakOnContextSwitch == true) store.updateProgress(0)
             finish()
         }
     }

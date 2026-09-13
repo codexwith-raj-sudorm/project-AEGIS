@@ -20,6 +20,7 @@ import com.jarvis.aegis.session.ConsentHasher
 import com.jarvis.aegis.session.ConsentRecord
 import com.jarvis.aegis.session.FocusSession
 import com.jarvis.aegis.session.SessionPolicy
+import com.jarvis.aegis.session.rules
 import com.jarvis.aegis.ui.screens.ActivationScreen
 import com.jarvis.aegis.ui.screens.DashboardScreen
 import com.jarvis.aegis.ui.screens.LearningScreen
@@ -85,7 +86,7 @@ class MainActivity : FragmentActivity() {
                                         policyVersion = ConsentHasher.POLICY_VERSION,
                                         policyHash = ConsentHasher.hash(policy),
                                         confirmedAt = Instant.now(),
-                                        deviceAuthenticated = policy.mode == com.jarvis.aegis.session.SessionMode.EXTREME,
+                                        deviceAuthenticated = policy.mode.rules.requireDeviceAuthentication,
                                     ),
                                 )
                                 store.saveSession(activated)

@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.jarvis.aegis.session.SessionMode
 import com.jarvis.aegis.session.SessionPolicy
+import com.jarvis.aegis.session.rules
 import com.jarvis.aegis.ui.components.AegisButton
 import com.jarvis.aegis.ui.components.AegisOutlineButton
 import kotlinx.coroutines.delay
@@ -43,16 +44,20 @@ fun ActivationScreen(
     val phrase = remember { randomConfirmationPhrase() }
     var phraseEntry by remember { mutableStateOf("") }
     var recoveryEntry by remember { mutableStateOf("") }
-    var authenticated by remember { mutableStateOf(policy.mode == SessionMode.STANDARD) }
-    var authStatus by remember { mutableStateOf(if (authenticated) "STANDARD MODE DOES NOT REQUIRE DEVICE AUTH." else "DEVICE AUTHENTICATION REQUIRED.") }
-    var countdown by remember { mutableIntStateOf(if (policy.mode == SessionMode.EXTREME) 30 else 5) }
+    var authenticated by remember { mutableStateOf(!policy.mode.rules.requireDeviceAuthentication) }
+    var authStatus by remember { mutableStateOf(if (authenticated) "THIS LEVEL DOES NOT REQUIRE DEVICE AUTH." else "DEVICE AUTHENTICATION REQUIRED.") }
+    var countdown by remember { mutableIntStateOf(when (policy.mode) {
+        SessionMode.STANDARD -> 5
+        SessionMode.STRICT -> 15
+        SessionMode.EXTREME -> 30
+    }) }
     LaunchedEffect(Unit) {
         while (countdown > 0) { delay(1_000); countdown-- }
     }
     val phraseMatches = phraseEntry.trim().equals(phrase, ignoreCase = true)
     val recoveryMatches = recoveryEntry.trim() == recoveryCode
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("> FINAL_AUTHORIZATION // ${policy.mode.name}")
+        Text("> FINAL_AUTHORIZATION // ${if (policy.mode == SessionMode.EXTREME) "HARD" else policy.mode.name}")
         Text("TARGETS: ${policy.targetPackages.size}")
         Text("DURATION: ${policy.duration.toMinutes()} MINUTES")
         Text("EXIT DELAY: ${policy.exitDelay.toMinutes()} MINUTES")
@@ -64,7 +69,7 @@ fun ActivationScreen(
         OutlinedTextField(recoveryEntry, { recoveryEntry = it }, label = { Text("RECOVERY CODE") }, modifier = Modifier.fillMaxWidth())
         Text("TYPE: $phrase")
         OutlinedTextField(phraseEntry, { phraseEntry = it }, label = { Text("CONFIRMATION PHRASE") }, modifier = Modifier.fillMaxWidth())
-        if (policy.mode == SessionMode.EXTREME) {
+        if (policy.mode.rules.requireDeviceAuthentication) {
             AegisButton("[ AUTHENTICATE DEVICE OWNER ]", {
                 onAuthenticate { success, error ->
                     authenticated = success

@@ -27,7 +27,7 @@ class AegisAccessibilityService : AccessibilityService() {
         if (lastIntercepted == foregroundPackage && now - lastInterceptedAt < 1_500) return
         lastIntercepted = foregroundPackage
         lastInterceptedAt = now
-        val cooldown = LaunchCooldownPolicy().register(store.launchAttemptState(foregroundPackage), Instant.now())
+        val cooldown = LaunchCooldownPolicy().register(store.launchAttemptState(foregroundPackage), Instant.now(), session.policy.mode)
         store.saveLaunchAttemptState(foregroundPackage, cooldown)
         startActivity(Intent(this, AegisLockActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
