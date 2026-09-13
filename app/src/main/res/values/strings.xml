@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">AEGIS</string>
+    <string name="accessibility_service_description">Detects only user-selected distracting apps during an active focus session and opens the AEGIS cognitive gate.</string>
+</resources>
