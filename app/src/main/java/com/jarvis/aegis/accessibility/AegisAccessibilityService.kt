@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
 import com.jarvis.aegis.data.AegisStore
+import com.jarvis.aegis.recovery.WatchdogManager
 import com.jarvis.aegis.ui.lock.AegisLockActivity
 
 /** Package-transition-only enforcement. Window content retrieval is disabled in XML. */
@@ -15,6 +16,7 @@ class AegisAccessibilityService : AccessibilityService() {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val foregroundPackage = event.packageName?.toString() ?: return
         if (foregroundPackage == packageName) return
+        if (WatchdogManager(this).isFailOpen()) return
         val store = AegisStore(this)
         val session = store.activeSession() ?: return
         if (foregroundPackage !in session.policy.targetPackages || foregroundPackage in session.policy.essentialPackages) return

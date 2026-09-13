@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.jarvis.aegis.data.AegisStore
+import com.jarvis.aegis.recovery.RecoveryAttemptLimiter
 import com.jarvis.aegis.recovery.RecoveryCodeManager
 import com.jarvis.aegis.ui.components.AegisButton
 import com.jarvis.aegis.ui.components.AegisOutlineButton
@@ -66,10 +67,24 @@ fun SessionExitScreen(store: AegisStore, onEnded: () -> Unit, onBack: () -> Unit
         }
         OutlinedTextField(code, { code = it }, label = { Text("OWNER RECOVERY CODE") }, modifier = Modifier.fillMaxWidth())
         AegisButton("[ VERIFY AND DECOMMISSION ]", {
-            val verifier = store.recoveryVerifier()
-            if (verifier != null && RecoveryCodeManager().verify(code.toCharArray(), verifier)) {
-                store.clearSession(); onEnded()
-            } else status = "RECOVERY CODE REJECTED."
+            val now = Instant.now()
+            val limiter = RecoveryAttemptLimiter()
+            val attemptState = store.recoveryAttemptState()
+            val decision = limiter.decision(attemptState, now)
+            if (!decision.allowed) {
+                status = "RECOVERY LOCKED FOR ${decision.remaining.seconds + 1} SECONDS."
+            } else {
+                val verifier = store.recoveryVerifier()
+                if (verifier != null && RecoveryCodeManager().verify(code.toCharArray(), verifier)) {
+                    store.saveRecoveryAttemptState(limiter.onSuccess())
+                    store.clearSession()
+                    onEnded()
+                } else {
+                    val failed = limiter.onFailure(attemptState, now)
+                    store.saveRecoveryAttemptState(failed)
+                    status = "RECOVERY CODE REJECTED. ATTEMPT ${failed.failures}."
+                }
+            }
             code = ""
         }, accent = true, enabled = code.isNotBlank())
         AegisOutlineButton("[ RETURN TO COMMITMENT ]", onBack)

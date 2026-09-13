@@ -30,6 +30,7 @@ import com.jarvis.aegis.challenge.AnswerValidator
 import com.jarvis.aegis.challenge.ChallengeGenerator
 import com.jarvis.aegis.challenge.ValidationResult
 import com.jarvis.aegis.data.AegisStore
+import com.jarvis.aegis.recovery.WatchdogManager
 import com.jarvis.aegis.ui.components.AegisButton
 import com.jarvis.aegis.ui.theme.AegisTheme
 import kotlinx.coroutines.delay
@@ -41,6 +42,8 @@ class AegisLockActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        val watchdog = WatchdogManager(this)
+        if (!watchdog.beginGateLaunch()) return finish()
         val target = intent.getStringExtra(EXTRA_TARGET) ?: return finish()
         if (AegisStore(this).activeSession() == null) return finish()
         setContent {
@@ -100,6 +103,7 @@ class AegisLockActivity : ComponentActivity() {
                 }
             }
         }
+        window.decorView.post { watchdog.markGateHealthy() }
     }
 
     override fun onUserLeaveHint() {

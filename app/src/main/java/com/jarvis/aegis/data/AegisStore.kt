@@ -4,6 +4,8 @@ import android.content.Context
 import com.jarvis.aegis.profile.AgeBand
 import com.jarvis.aegis.profile.LearnerProfile
 import com.jarvis.aegis.profile.MotivationProfile
+import com.jarvis.aegis.recovery.AttemptState
+import com.jarvis.aegis.security.SecurePreferences
 import com.jarvis.aegis.session.FocusSession
 import com.jarvis.aegis.session.SessionMode
 import com.jarvis.aegis.session.SessionPolicy
@@ -13,22 +15,22 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
-/** Small, fail-open persistence layer. Encrypted storage migration is tracked for hardening. */
+/** Keystore-encrypted state with fail-open parsing and legacy plaintext migration. */
 class AegisStore(context: Context) {
     private val preferences = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+    private val secure = SecurePreferences(preferences)
 
-    fun saveProfile(profile: LearnerProfile) = preferences.edit()
-        .putString(PROFILE, JSONObject().apply {
-            put("name", profile.displayName)
-            put("age", profile.ageBand.name)
-            put("grade", profile.grade)
-            put("curriculum", profile.curriculum)
-            put("subjects", JSONArray(profile.subjects.toList()))
-            put("motivation", profile.motivation.name)
-        }.toString()).apply()
+    fun saveProfile(profile: LearnerProfile) = secure.putString(PROFILE, JSONObject().apply {
+        put("name", profile.displayName)
+        put("age", profile.ageBand.name)
+        put("grade", profile.grade)
+        put("curriculum", profile.curriculum)
+        put("subjects", JSONArray(profile.subjects.toList()))
+        put("motivation", profile.motivation.name)
+    }.toString())
 
     fun profile(): LearnerProfile = runCatching {
-        val json = JSONObject(preferences.getString(PROFILE, null) ?: return LearnerProfile())
+        val json = JSONObject(secure.getString(PROFILE) ?: return LearnerProfile())
         LearnerProfile(
             displayName = json.optString("name"),
             ageBand = AgeBand.valueOf(json.optString("age", AgeBand.ADULT.name)),
@@ -39,24 +41,22 @@ class AegisStore(context: Context) {
         ).let { it.copy(motivation = it.motivation.takeIf(it.allowedMotivations::contains) ?: MotivationProfile.REFLECTIVE) }
     }.getOrElse { LearnerProfile() }
 
-    fun saveSession(session: FocusSession) = preferences.edit()
-        .putString(SESSION, JSONObject().apply {
-            put("id", session.id.toString())
-            put("mode", session.policy.mode.name)
-            put("activatedAt", session.activatedAt.toString())
-            put("expiresAt", session.expiresAt.toString())
-            put("targets", JSONArray(session.policy.targetPackages.toList()))
-            put("essential", JSONArray(session.policy.essentialPackages.toList()))
-            put("exitDelaySeconds", session.policy.exitDelay.seconds)
-            put("amnesty", session.policy.amnestyEnabled)
-            put("streak", session.streak)
-            put("interrupted", session.interrupted)
-        }.toString()).apply()
+    fun saveSession(session: FocusSession) = secure.putString(SESSION, JSONObject().apply {
+        put("id", session.id.toString())
+        put("mode", session.policy.mode.name)
+        put("activatedAt", session.activatedAt.toString())
+        put("expiresAt", session.expiresAt.toString())
+        put("targets", JSONArray(session.policy.targetPackages.toList()))
+        put("essential", JSONArray(session.policy.essentialPackages.toList()))
+        put("exitDelaySeconds", session.policy.exitDelay.seconds)
+        put("amnesty", session.policy.amnestyEnabled)
+        put("streak", session.streak)
+        put("interrupted", session.interrupted)
+    }.toString())
 
-    /** Any malformed, expired, or impossible state returns null and clears enforcement. */
+    /** Any undecryptable, malformed, expired, or impossible session fails open. */
     fun activeSession(now: Instant = Instant.now()): FocusSession? = runCatching {
-        val raw = preferences.getString(SESSION, null) ?: return null
-        val json = JSONObject(raw)
+        val json = JSONObject(secure.getString(SESSION) ?: return null)
         val activated = Instant.parse(json.getString("activatedAt"))
         val expires = Instant.parse(json.getString("expiresAt"))
         if (!now.isBefore(expires) || expires.isBefore(activated)) return clearSession().let { null }
@@ -78,47 +78,49 @@ class AegisStore(context: Context) {
     fun updateProgress(streak: Int, tokens: Int? = null) {
         val session = activeSession() ?: return
         saveSession(session.copy(streak = streak.coerceAtLeast(0)))
-        if (tokens != null) preferences.edit().putInt(TOKENS, tokens.coerceAtLeast(0)).apply()
+        tokens?.let { secure.putInt(TOKENS, it.coerceAtLeast(0)) }
     }
 
-    fun tokens(): Int = preferences.getInt(TOKENS, 0).coerceAtLeast(0)
+    fun tokens(): Int = secure.getInt(TOKENS).coerceAtLeast(0)
 
     fun spendToken(): Boolean {
         val count = tokens()
         if (count <= 0) return false
-        preferences.edit().putInt(TOKENS, count - 1).apply()
+        secure.putInt(TOKENS, count - 1)
         return true
     }
 
-    fun clearSession() {
-        preferences.edit()
-            .remove(SESSION)
-            .remove(RECOVERY_VERIFIER)
-            .remove(EXIT_REQUESTED_AT)
-            .remove(EXIT_AVAILABLE_AT)
-            .apply()
-    }
-
-    fun saveRecoveryVerifier(verifier: String) {
-        preferences.edit().putString(RECOVERY_VERIFIER, verifier).apply()
-    }
-
-    fun recoveryVerifier(): String? = preferences.getString(RECOVERY_VERIFIER, null)
+    fun clearSession() = secure.remove(SESSION, RECOVERY_VERIFIER, EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT, RECOVERY_ATTEMPTS)
+    fun saveRecoveryVerifier(verifier: String) = secure.putString(RECOVERY_VERIFIER, verifier)
+    fun recoveryVerifier(): String? = secure.getString(RECOVERY_VERIFIER)
 
     fun saveExitRequest(requestedAt: Instant, availableAt: Instant) {
-        preferences.edit()
-            .putLong(EXIT_REQUESTED_AT, requestedAt.toEpochMilli())
-            .putLong(EXIT_AVAILABLE_AT, availableAt.toEpochMilli())
-            .apply()
+        secure.putLong(EXIT_REQUESTED_AT, requestedAt.toEpochMilli())
+        secure.putLong(EXIT_AVAILABLE_AT, availableAt.toEpochMilli())
     }
 
-    fun exitAvailableAt(): Instant? = preferences.getLong(EXIT_AVAILABLE_AT, 0L)
+    fun exitAvailableAt(): Instant? = secure.getLong(EXIT_AVAILABLE_AT)
         .takeIf { it > 0L }?.let(Instant::ofEpochMilli)
 
-    fun cancelExitRequest() {
-        preferences.edit().remove(EXIT_REQUESTED_AT).remove(EXIT_AVAILABLE_AT).apply()
-    }
+    fun cancelExitRequest() = secure.remove(EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT)
 
+    fun recoveryAttemptState(): AttemptState = runCatching {
+        val json = JSONObject(secure.getString(RECOVERY_ATTEMPTS) ?: return AttemptState())
+        AttemptState(
+            failures = json.optInt("failures").coerceAtLeast(0),
+            blockedUntil = json.optString("blockedUntil").takeIf(String::isNotBlank)?.let(Instant::parse),
+        )
+    }.getOrDefault(AttemptState())
+
+    fun saveRecoveryAttemptState(state: AttemptState) = secure.putString(
+        RECOVERY_ATTEMPTS,
+        JSONObject().apply {
+            put("failures", state.failures)
+            put("blockedUntil", state.blockedUntil?.toString() ?: "")
+        }.toString(),
+    )
+
+    // Access grants are short-lived enforcement metadata rather than sensitive profile content.
     fun grantTarget(packageName: String, until: Instant) = preferences.edit()
         .putLong("grant:$packageName", until.toEpochMilli()).apply()
 
@@ -137,5 +139,6 @@ class AegisStore(context: Context) {
         const val EXIT_REQUESTED_AT = "exit_requested_at"
         const val EXIT_AVAILABLE_AT = "exit_available_at"
         const val TOKENS = "sincerity_tokens"
+        const val RECOVERY_ATTEMPTS = "recovery_attempts"
     }
 }
