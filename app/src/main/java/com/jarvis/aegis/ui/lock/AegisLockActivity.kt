@@ -1,6 +1,7 @@
 package com.jarvis.aegis.ui.lock
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -58,9 +59,17 @@ class AegisLockActivity : ComponentActivity() {
                 val profile = remember { store.profile() }
                 val accountability = remember { AccountabilityMessages() }
                 var tokenBalance by remember { mutableIntStateOf(store.tokens()) }
+                val cooldownDeadline = remember { intent.getLongExtra(EXTRA_COOLDOWN_UNTIL, 0L) }
+                var cooldownSeconds by remember {
+                    mutableIntStateOf(((cooldownDeadline - System.currentTimeMillis()).coerceAtLeast(0L) / 1000L).toInt())
+                }
                 var status by remember { mutableStateOf("ACCESS DENIED. COGNITIVE VERIFICATION REQUIRED.") }
 
+                LaunchedEffect(cooldownDeadline) {
+                    while (cooldownSeconds > 0) { delay(1_000); cooldownSeconds-- }
+                }
                 LaunchedEffect(challenge.id) {
+                    while (cooldownSeconds > 0) delay(250)
                     while (seconds > 0) { delay(1_000); seconds-- }
                     store.updateProgress(0)
                     status = accountability.message(profile.motivation, profile.ageBand, AccountabilityEvent.TIMEOUT)
@@ -72,7 +81,7 @@ class AegisLockActivity : ComponentActivity() {
                     Text("> AEGIS_GATE // ${challenge.category.name} // TTK: ${seconds}s")
                     Text("TARGET: $target")
                     Text("STREAK: ${store.activeSession()?.streak ?: 0}/20 // TOKENS: $tokenBalance")
-                    Text(status)
+                    Text(if (cooldownSeconds > 0) "RAPID RELAUNCH DETECTED. COOLDOWN: ${cooldownSeconds}s" else status)
                     LinearProgressIndicator(
                         progress = { seconds.toFloat() / challenge.timeLimitSeconds },
                         modifier = Modifier.fillMaxWidth(),
@@ -102,14 +111,14 @@ class AegisLockActivity : ComponentActivity() {
                                 answer = ""
                             }
                         }
-                    })
+                    }, enabled = cooldownSeconds == 0)
                     if (session.policy.amnestyEnabled && tokenBalance > 0) {
                         AegisButton("[ SPEND 1 SINCERITY POINT // 15 MINUTES ]", {
                             if (store.spendToken()) {
                                 tokenBalance--
                                 grantAndOpen(store, target)
                             }
-                        }, accent = true)
+                        }, accent = true, enabled = cooldownSeconds == 0)
                     }
                     Text("LEAVING THIS GATE INVALIDATES THE CURRENT CHALLENGE.")
                 }
@@ -120,6 +129,7 @@ class AegisLockActivity : ComponentActivity() {
 
     private fun grantAndOpen(store: AegisStore, target: String) {
         completed = true
+        store.resetLaunchAttempts(target)
         store.grantTarget(target, Instant.now().plusSeconds(15 * 60))
         packageManager.getLaunchIntentForPackage(target)?.let {
             it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -130,8 +140,30 @@ class AegisLockActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (!completed) finish()
+        if (!completed) {
+            AegisStore(this).updateProgress(0)
+            finish()
+        }
     }
 
-    companion object { const val EXTRA_TARGET = "target_package" }
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        if (isInMultiWindowMode && !completed) {
+            AegisStore(this).updateProgress(0)
+            finish()
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode && !completed) {
+            AegisStore(this).updateProgress(0)
+            finish()
+        }
+    }
+
+    companion object {
+        const val EXTRA_TARGET = "target_package"
+        const val EXTRA_COOLDOWN_UNTIL = "cooldown_until"
+    }
 }

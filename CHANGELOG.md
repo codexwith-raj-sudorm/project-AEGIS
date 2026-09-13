@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 — 2026-09-13
+
+- Add escalating per-target cooldowns for repeated launch attempts, capped at five minutes.
+- Add cooldown status and enforcement to the cognitive gate.
+- Reset challenge streaks on deliberate task exit, multi-window, and picture-in-picture entry.
+- Validate sessions safely after boot and package replacement without launching an activity.
+- Add active-session and Fail-Open notification channels.
+- Restore active-session status notifications after reboot and request Android 13+ notification permission.
+
 ## 0.5.0 — 2026-09-13
 
 - Add arithmetic, algebra, logic, kinematics, chemistry, unit-conversion, and matrix challenge categories.

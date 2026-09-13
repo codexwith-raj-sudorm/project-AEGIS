@@ -9,6 +9,7 @@ import com.jarvis.aegis.security.SecurePreferences
 import com.jarvis.aegis.session.ChallengeDifficulty
 import com.jarvis.aegis.session.ConsentRecord
 import com.jarvis.aegis.session.FocusSession
+import com.jarvis.aegis.session.LaunchAttemptState
 import com.jarvis.aegis.session.SessionMode
 import com.jarvis.aegis.session.SessionPolicy
 import org.json.JSONArray
@@ -134,6 +135,26 @@ class AegisStore(context: Context) {
         }.toString(),
     )
 
+    fun launchAttemptState(packageName: String): LaunchAttemptState = runCatching {
+        val json = JSONObject(secure.getString("$LAUNCH_ATTEMPT_PREFIX$packageName") ?: return LaunchAttemptState())
+        LaunchAttemptState(
+            attempts = json.optInt("attempts").coerceAtLeast(0),
+            windowStartedAt = Instant.parse(json.getString("windowStartedAt")),
+            cooldownUntil = Instant.parse(json.getString("cooldownUntil")),
+        )
+    }.getOrDefault(LaunchAttemptState())
+
+    fun resetLaunchAttempts(packageName: String) = secure.remove("$LAUNCH_ATTEMPT_PREFIX$packageName")
+
+    fun saveLaunchAttemptState(packageName: String, state: LaunchAttemptState) = secure.putString(
+        "$LAUNCH_ATTEMPT_PREFIX$packageName",
+        JSONObject().apply {
+            put("attempts", state.attempts)
+            put("windowStartedAt", state.windowStartedAt.toString())
+            put("cooldownUntil", state.cooldownUntil.toString())
+        }.toString(),
+    )
+
     // Access grants are short-lived enforcement metadata rather than sensitive profile content.
     fun grantTarget(packageName: String, until: Instant) = preferences.edit()
         .putLong("grant:$packageName", until.toEpochMilli()).apply()
@@ -155,5 +176,6 @@ class AegisStore(context: Context) {
         const val EXIT_AVAILABLE_AT = "exit_available_at"
         const val TOKENS = "sincerity_tokens"
         const val RECOVERY_ATTEMPTS = "recovery_attempts"
+        const val LAUNCH_ATTEMPT_PREFIX = "launch_attempt:"
     }
 }

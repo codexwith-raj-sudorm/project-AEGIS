@@ -5,7 +5,9 @@ import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
 import com.jarvis.aegis.data.AegisStore
 import com.jarvis.aegis.recovery.WatchdogManager
+import com.jarvis.aegis.session.LaunchCooldownPolicy
 import com.jarvis.aegis.ui.lock.AegisLockActivity
+import java.time.Instant
 
 /** Package-transition-only enforcement. Window content retrieval is disabled in XML. */
 class AegisAccessibilityService : AccessibilityService() {
@@ -25,9 +27,12 @@ class AegisAccessibilityService : AccessibilityService() {
         if (lastIntercepted == foregroundPackage && now - lastInterceptedAt < 1_500) return
         lastIntercepted = foregroundPackage
         lastInterceptedAt = now
+        val cooldown = LaunchCooldownPolicy().register(store.launchAttemptState(foregroundPackage), Instant.now())
+        store.saveLaunchAttemptState(foregroundPackage, cooldown)
         startActivity(Intent(this, AegisLockActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
             putExtra(AegisLockActivity.EXTRA_TARGET, foregroundPackage)
+            putExtra(AegisLockActivity.EXTRA_COOLDOWN_UNTIL, cooldown.cooldownUntil.toEpochMilli())
         })
     }
 

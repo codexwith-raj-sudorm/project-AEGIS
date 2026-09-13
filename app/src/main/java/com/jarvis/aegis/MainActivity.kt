@@ -1,7 +1,11 @@
 package com.jarvis.aegis
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.FragmentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -9,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.jarvis.aegis.data.AegisStore
+import com.jarvis.aegis.notification.AegisNotifications
 import com.jarvis.aegis.recovery.RecoveryCodeManager
 import com.jarvis.aegis.security.DeviceAuthenticator
 import com.jarvis.aegis.session.ConsentHasher
@@ -29,8 +34,12 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val store = AegisStore(this)
+        val notifications = AegisNotifications(this).also { it.createChannels() }
         setContent {
             AegisTheme {
+                val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                    if (granted) store.activeSession()?.let(notifications::showActiveSession)
+                }
                 var destination by rememberSaveable { mutableStateOf("dashboard") }
                 var profile by remember { mutableStateOf(store.profile()) }
                 var session by remember { mutableStateOf(store.activeSession()) }
@@ -80,6 +89,8 @@ class MainActivity : FragmentActivity() {
                                     ),
                                 )
                                 store.saveSession(activated)
+                                notifications.showActiveSession(activated)
+                                if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                                 session = activated
                                 recoveryCode = ""
                                 recoveryVerifier = ""
@@ -93,6 +104,7 @@ class MainActivity : FragmentActivity() {
                         )
                     } ?: run { destination = "dashboard" }
                     "exit" -> SessionExitScreen(store, onEnded = {
+                        notifications.cancelSession()
                         session = null; destination = "dashboard"
                     }, onBack = { destination = "dashboard" })
                     "learning" -> LearningScreen { destination = "dashboard" }
