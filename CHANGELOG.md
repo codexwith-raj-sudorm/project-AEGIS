@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 — 2026-09-13
+
+- Add arithmetic, algebra, logic, kinematics, chemistry, unit-conversion, and matrix challenge categories.
+- Select challenges from the session's configured subjects and difficulty.
+- Add dynamic category-specific timers and recent-question exclusion.
+- Validate supplied units and normalize common equivalent unit names.
+- Display streak and Sincerity Point balance in the gate.
+- Add the complete Sincerity Point spending flow with a 15-minute access grant.
+
 ## 0.4.0 — 2026-09-13
 
 - Add multi-step Standard and Extreme session configuration.

@@ -1,6 +1,5 @@
 package com.jarvis.aegis.ui.lock
 
-import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
@@ -11,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -21,7 +21,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.jarvis.aegis.accountability.AccountabilityEvent
@@ -45,27 +44,34 @@ class AegisLockActivity : ComponentActivity() {
         val watchdog = WatchdogManager(this)
         if (!watchdog.beginGateLaunch()) return finish()
         val target = intent.getStringExtra(EXTRA_TARGET) ?: return finish()
-        if (AegisStore(this).activeSession() == null) return finish()
+        val initialStore = AegisStore(this)
+        val session = initialStore.activeSession() ?: return finish()
+
         setContent {
             AegisTheme {
                 val generator = remember { ChallengeGenerator() }
-                var challenge by remember { mutableStateOf(generator.arithmetic()) }
+                fun nextChallenge() = generator.generate(session.policy.challengeSubjects, session.policy.difficulty)
+                var challenge by remember { mutableStateOf(nextChallenge()) }
                 var answer by remember { mutableStateOf("") }
                 var seconds by remember(challenge.id) { mutableIntStateOf(challenge.timeLimitSeconds) }
                 val store = remember { AegisStore(this@AegisLockActivity) }
                 val profile = remember { store.profile() }
                 val accountability = remember { AccountabilityMessages() }
+                var tokenBalance by remember { mutableIntStateOf(store.tokens()) }
                 var status by remember { mutableStateOf("ACCESS DENIED. COGNITIVE VERIFICATION REQUIRED.") }
+
                 LaunchedEffect(challenge.id) {
                     while (seconds > 0) { delay(1_000); seconds-- }
                     store.updateProgress(0)
                     status = accountability.message(profile.motivation, profile.ageBand, AccountabilityEvent.TIMEOUT)
-                    challenge = generator.arithmetic()
+                    challenge = nextChallenge()
                     answer = ""
                 }
+
                 Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Text("> AEGIS_GATE // TTK: 00:${seconds.toString().padStart(2, '0')}")
+                    Text("> AEGIS_GATE // ${challenge.category.name} // TTK: ${seconds}s")
                     Text("TARGET: $target")
+                    Text("STREAK: ${store.activeSession()?.streak ?: 0}/20 // TOKENS: $tokenBalance")
                     Text(status)
                     LinearProgressIndicator(
                         progress = { seconds.toFloat() / challenge.timeLimitSeconds },
@@ -74,36 +80,52 @@ class AegisLockActivity : ComponentActivity() {
                     Text(challenge.prompt)
                     OutlinedTextField(
                         value = answer, onValueChange = { answer = it.take(32) },
-                        label = { Text("ENTER VALUE") }, modifier = Modifier.fillMaxWidth(),
+                        label = { Text("ENTER VALUE${challenge.unit?.let { " ($it)" } ?: ""}") },
+                        modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     )
                     AegisButton("[ EXECUTE_SUBMIT ]", {
-                        when (AnswerValidator().validate(challenge, answer)) {
+                        when (val result = AnswerValidator().validate(challenge, answer)) {
                             ValidationResult.Correct -> {
-                                completed = true
                                 val nextStreak = (store.activeSession()?.streak ?: 0) + 1
-                                if (nextStreak >= 20) store.updateProgress(0, store.tokens() + 1)
-                                else store.updateProgress(nextStreak)
-                                store.grantTarget(target, Instant.now().plusSeconds(15 * 60))
-                                packageManager.getLaunchIntentForPackage(target)?.let {
-                                    it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    startActivity(it)
-                                }
-                                finish()
+                                if (nextStreak >= 20) {
+                                    tokenBalance++
+                                    store.updateProgress(0, tokenBalance)
+                                } else store.updateProgress(nextStreak)
+                                grantAndOpen(store, target)
                             }
+                            is ValidationResult.IncorrectUnit -> status = "UNIT REJECTED. EXPECTED ${result.expectedUnit}."
                             else -> {
                                 store.updateProgress(0)
                                 status = "INCORRECT. STREAK RESET. NEW CHALLENGE."
-                                challenge = generator.arithmetic()
+                                challenge = nextChallenge()
                                 answer = ""
                             }
                         }
                     })
+                    if (session.policy.amnestyEnabled && tokenBalance > 0) {
+                        AegisButton("[ SPEND 1 SINCERITY POINT // 15 MINUTES ]", {
+                            if (store.spendToken()) {
+                                tokenBalance--
+                                grantAndOpen(store, target)
+                            }
+                        }, accent = true)
+                    }
                     Text("LEAVING THIS GATE INVALIDATES THE CURRENT CHALLENGE.")
                 }
             }
         }
         window.decorView.post { watchdog.markGateHealthy() }
+    }
+
+    private fun grantAndOpen(store: AegisStore, target: String) {
+        completed = true
+        store.grantTarget(target, Instant.now().plusSeconds(15 * 60))
+        packageManager.getLaunchIntentForPackage(target)?.let {
+            it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(it)
+        }
+        finish()
     }
 
     override fun onUserLeaveHint() {
