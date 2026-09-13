@@ -26,6 +26,27 @@ interface LearningAssistant {
 /** Retrieval-only baseline that never fabricates model output. */
 class LocalStudyRetriever : LearningAssistant {
     override suspend fun answer(notebook: Notebook, request: String): StudyAnswer {
+        QuestionResolver().parse(request)?.let { reference ->
+            val matches = QuestionResolver().resolve(notebook, reference)
+            if (matches.size == 1) {
+                val match = matches.single()
+                return StudyAnswer(
+                    answer = match.text,
+                    citations = listOf(buildString {
+                        append(notebook.title)
+                        reference.chapter?.let { append(", chapter ").append(it) }
+                        match.page?.let { append(", page ").append(it) }
+                        append(", question ").append(reference.questionNumber)
+                    }),
+                    grounded = true,
+                )
+            }
+            if (matches.size > 1) return StudyAnswer(
+                answer = "Question ${reference.questionNumber} appears more than once. Specify its chapter or page.",
+                citations = matches.map { "${notebook.title}, ${it.page?.let { page -> "page $page" } ?: "line ${it.section}"}" },
+                grounded = false,
+            )
+        }
         val terms = request.lowercase().split(Regex("\\W+")).filter { it.length > 3 }.toSet()
         val sections = notebook.content.toSections()
         val matches = sections.mapIndexed { index, text ->

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — 2026-09-13
+
+- Add searchable PDF import with per-page text extraction and page markers.
+- Enforce 10 MB and 200-page PDF safety limits and reject encrypted or image-only PDFs clearly.
+- Add chapter and question-number parsing for grounded notebook requests.
+- Resolve repeated question numbers through chapter context or request clarification.
+- Include page, chapter, and question metadata in exact-match citations.
+
 ## 0.7.0 — 2026-09-13
 
 - Add encrypted persistent notebook storage with create, edit, rename, and delete flows.
