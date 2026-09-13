@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — 2026-09-13
+
+- Add encrypted persistent notebook storage with create, edit, rename, and delete flows.
+- Add Android text and Markdown document import with a bounded 2 MB reader.
+- Add grounded local notebook search with section-level citations.
+- Add deterministic revision-note, flashcard, and quiz generation.
+- Add source metadata, timestamps, import errors, and explicit insufficient-source responses.
+
 ## 0.6.0 — 2026-09-13
 
 - Add escalating per-target cooldowns for repeated launch attempts, capped at five minutes.
