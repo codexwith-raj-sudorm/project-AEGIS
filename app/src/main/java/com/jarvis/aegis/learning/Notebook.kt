@@ -11,6 +11,7 @@ data class Notebook(
     val sourceName: String? = null,
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = createdAt,
+    val revision: Int = 1,
 )
 
 data class StudyAnswer(

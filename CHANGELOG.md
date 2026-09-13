@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 — 2026-09-13
+
+- Add fully on-device ML Kit OCR for imported study-note images.
+- Preserve OCR output as page-aware notebook content without requesting storage access.
+- Reject images with no readable text and warn when confidence is unavailable or low.
+- Add encrypted notebook revision counters and display revision metadata in Learning Mode.
+- Expand the document picker to accept images alongside PDF, text, and Markdown.
+
 ## 0.8.0 — 2026-09-13
 
 - Add searchable PDF import with per-page text extraction and page markers.

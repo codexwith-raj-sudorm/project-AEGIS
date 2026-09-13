@@ -19,7 +19,9 @@ class NotebookRepository(context: Context) {
 
     fun save(notebook: Notebook) {
         val current = all().associateBy(Notebook::id).toMutableMap()
-        current[notebook.id] = notebook.copy(updatedAt = Instant.now())
+        val prior = current[notebook.id]
+        val revision = if (prior == null) notebook.revision.coerceAtLeast(1) else prior.revision + 1
+        current[notebook.id] = notebook.copy(updatedAt = Instant.now(), revision = revision)
         persist(current.values.toList())
     }
 
@@ -36,6 +38,7 @@ class NotebookRepository(context: Context) {
                 put("sourceName", notebook.sourceName ?: "")
                 put("createdAt", notebook.createdAt.toString())
                 put("updatedAt", notebook.updatedAt.toString())
+                put("revision", notebook.revision)
             })
         }
         secure.putString(NOTEBOOKS, array.toString())
@@ -49,6 +52,7 @@ class NotebookRepository(context: Context) {
         sourceName = optString("sourceName").takeIf(String::isNotBlank),
         createdAt = Instant.parse(getString("createdAt")),
         updatedAt = Instant.parse(getString("updatedAt")),
+        revision = optInt("revision", 1).coerceAtLeast(1),
     )
 
     companion object { private const val NOTEBOOKS = "notebooks" }

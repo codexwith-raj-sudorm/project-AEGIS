@@ -48,6 +48,7 @@ fun LearningScreen(onBack: () -> Unit) {
                         title = document.name.substringBeforeLast('.'), subject = "Custom",
                         content = document.content, sourceName = document.name,
                     )
+                    document.warning?.let { importError = it }
                 }
                 .onFailure { importError = it.message ?: "Import failed" }
         }
@@ -57,7 +58,7 @@ fun LearningScreen(onBack: () -> Unit) {
         NotebookListScreen(
             notebooks = notebooks,
             onCreate = { selected = Notebook(title = "", subject = "Custom", content = "") },
-            onImport = { importer.launch(arrayOf("application/pdf", "text/plain", "text/markdown", "text/*")) },
+            onImport = { importer.launch(arrayOf("application/pdf", "image/*", "text/plain", "text/markdown", "text/*")) },
             onSelect = { selected = it },
             onDelete = { repository.delete(it.id); notebooks = repository.all() },
             onBack = onBack,
@@ -87,13 +88,13 @@ private fun NotebookListScreen(
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("> LEARNING_MODE // ENCRYPTED NOTEBOOKS")
         AegisButton("[ CREATE NOTEBOOK ]", onCreate, accent = true)
-        AegisButton("[ IMPORT PDF, TEXT, OR MARKDOWN ]", onImport)
+        AegisButton("[ IMPORT PDF, IMAGE, TEXT, OR MARKDOWN ]", onImport)
         if (notebooks.isEmpty()) Text("NO NOTEBOOKS. IMPORT OR CREATE STUDY MATERIAL.")
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(notebooks, key = { it.id }) { notebook ->
                 Column(Modifier.fillMaxWidth()) {
                     Text("${notebook.title} // ${notebook.subject}")
-                    Text("${notebook.content.length} CHARACTERS // ${notebook.updatedAt}")
+                    Text("REV ${notebook.revision} // ${notebook.content.length} CHARACTERS // ${notebook.updatedAt}")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { onSelect(notebook) }) { Text("OPEN") }
                         TextButton(onClick = { onDelete(notebook) }) { Text("DELETE") }

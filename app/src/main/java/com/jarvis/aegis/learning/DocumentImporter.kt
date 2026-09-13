@@ -15,6 +15,7 @@ data class ImportedDocument(
     val content: String,
     val pageCount: Int?,
     val mediaType: String,
+    val warning: String? = null,
 )
 
 class DocumentImporter(private val context: Context) {
@@ -22,8 +23,16 @@ class DocumentImporter(private val context: Context) {
         val metadata = metadata(uri)
         require(metadata.size == null || metadata.size <= MAX_PDF_BYTES) { "File exceeds the 10 MB import limit." }
         val mime = context.contentResolver.getType(uri).orEmpty()
-        if (mime == PDF_MIME || metadata.name.endsWith(".pdf", ignoreCase = true)) importPdf(uri, metadata.name)
-        else importText(uri, metadata.name, mime.ifBlank { "text/plain" })
+        when {
+            mime == PDF_MIME || metadata.name.endsWith(".pdf", ignoreCase = true) -> importPdf(uri, metadata.name)
+            mime.startsWith("image/") -> importImage(uri, metadata.name, mime)
+            else -> importText(uri, metadata.name, mime.ifBlank { "text/plain" })
+        }
+    }
+
+    private suspend fun importImage(uri: Uri, name: String, mime: String): ImportedDocument {
+        val result = ImageOcrImporter(context).recognize(uri)
+        return ImportedDocument(name, "[PAGE 1]\n${result.text}", 1, mime, result.warning)
     }
 
     private fun importPdf(uri: Uri, name: String): ImportedDocument {
