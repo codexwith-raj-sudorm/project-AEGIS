@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0 — 2026-09-13
+
+- Persist active challenge parameters and encrypted expected answers across activity recreation.
+- Restore timers from immutable challenge deadlines rather than restarting countdowns.
+- Bind every challenge to its session and target package.
+- Make challenge IDs single-use and reject stale or duplicate submissions.
+- Clear active challenges on confirmed context switching and session decommissioning.
+- Prevent duplicate streak rewards from replaying an already consumed challenge.
+
 ## 0.10.0 — 2026-09-13
 
 - Add Standard, Strict, and Hard blocking levels with explicit enforcement rules.

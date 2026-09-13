@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.jarvis.aegis.accountability.AccountabilityEvent
 import com.jarvis.aegis.accountability.AccountabilityMessages
 import com.jarvis.aegis.challenge.AnswerValidator
-import com.jarvis.aegis.challenge.ChallengeGenerator
+import com.jarvis.aegis.challenge.ChallengeCoordinator
 import com.jarvis.aegis.challenge.ValidationResult
 import com.jarvis.aegis.data.AegisStore
 import com.jarvis.aegis.recovery.WatchdogManager
@@ -51,12 +51,12 @@ class AegisLockActivity : ComponentActivity() {
 
         setContent {
             AegisTheme {
-                val generator = remember { ChallengeGenerator() }
-                fun nextChallenge() = generator.generate(session.policy.challengeSubjects, session.policy.difficulty)
-                var challenge by remember { mutableStateOf(nextChallenge()) }
-                var answer by remember { mutableStateOf("") }
-                var seconds by remember(challenge.id) { mutableIntStateOf(challenge.timeLimitSeconds) }
                 val store = remember { AegisStore(this@AegisLockActivity) }
+                val coordinator = remember { ChallengeCoordinator(store) }
+                var active by remember { mutableStateOf(coordinator.currentOrCreate(session, target)) }
+                val challenge = active.challenge
+                var answer by remember(active.challenge.id) { mutableStateOf("") }
+                var seconds by remember(active.challenge.id) { mutableIntStateOf(active.remainingSeconds(Instant.now())) }
                 val profile = remember { store.profile() }
                 val accountability = remember { AccountabilityMessages() }
                 var tokenBalance by remember { mutableIntStateOf(store.tokens()) }
@@ -69,18 +69,26 @@ class AegisLockActivity : ComponentActivity() {
                 LaunchedEffect(cooldownDeadline) {
                     while (cooldownSeconds > 0) { delay(1_000); cooldownSeconds-- }
                 }
-                LaunchedEffect(challenge.id) {
+                LaunchedEffect(active.challenge.id) {
                     while (cooldownSeconds > 0) delay(250)
-                    while (seconds > 0) { delay(1_000); seconds-- }
-                    store.updateProgress(0)
-                    status = accountability.message(profile.motivation, profile.ageBand, AccountabilityEvent.TIMEOUT)
-                    challenge = nextChallenge()
-                    answer = ""
+                    while (seconds > 0) {
+                        delay(250)
+                        seconds = active.remainingSeconds(Instant.now())
+                    }
+                    if (coordinator.consume(active)) {
+                        store.updateProgress(0)
+                        status = accountability.message(profile.motivation, profile.ageBand, AccountabilityEvent.TIMEOUT)
+                        active = coordinator.replace(session, target)
+                    } else {
+                        active = coordinator.currentOrCreate(session, target)
+                        status = "STALE CHALLENGE REPLACED."
+                    }
                 }
 
                 Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     Text("> AEGIS_GATE // ${challenge.category.name} // TTK: ${seconds}s")
                     Text("TARGET: $target")
+                    Text("CHALLENGE: ${challenge.id}")
                     Text("STREAK: ${store.activeSession()?.streak ?: 0}/20 // TOKENS: $tokenBalance")
                     Text(if (cooldownSeconds > 0) "RAPID RELAUNCH DETECTED. COOLDOWN: ${cooldownSeconds}s" else status)
                     LinearProgressIndicator(
@@ -97,25 +105,35 @@ class AegisLockActivity : ComponentActivity() {
                     AegisButton("[ EXECUTE_SUBMIT ]", {
                         when (val result = AnswerValidator().validate(challenge, answer)) {
                             ValidationResult.Correct -> {
-                                val nextStreak = (store.activeSession()?.streak ?: 0) + 1
-                                if (nextStreak >= 20) {
-                                    tokenBalance++
-                                    store.updateProgress(0, tokenBalance)
-                                } else store.updateProgress(nextStreak)
-                                grantAndOpen(store, target)
+                                if (!coordinator.consume(active)) {
+                                    status = "SUBMISSION REJECTED: CHALLENGE ALREADY CONSUMED."
+                                    active = coordinator.currentOrCreate(session, target)
+                                } else {
+                                    val nextStreak = (store.activeSession()?.streak ?: 0) + 1
+                                    if (nextStreak >= 20) {
+                                        tokenBalance++
+                                        store.updateProgress(0, tokenBalance)
+                                    } else store.updateProgress(nextStreak)
+                                    grantAndOpen(store, target)
+                                }
                             }
                             is ValidationResult.IncorrectUnit -> status = "UNIT REJECTED. EXPECTED ${result.expectedUnit}."
                             else -> {
-                                store.updateProgress(0)
-                                status = "INCORRECT. STREAK RESET. NEW CHALLENGE."
-                                challenge = nextChallenge()
-                                answer = ""
+                                if (coordinator.consume(active)) {
+                                    store.updateProgress(0)
+                                    status = "INCORRECT. STREAK RESET. NEW CHALLENGE."
+                                    active = coordinator.replace(session, target)
+                                } else {
+                                    status = "SUBMISSION REJECTED: STALE CHALLENGE."
+                                    active = coordinator.currentOrCreate(session, target)
+                                }
                             }
                         }
                     }, enabled = cooldownSeconds == 0)
                     if (session.policy.amnestyEnabled && session.policy.mode.rules.allowAmnesty && tokenBalance > 0) {
                         AegisButton("[ SPEND 1 SINCERITY POINT // 15 MINUTES ]", {
                             if (store.spendToken()) {
+                                coordinator.consume(active)
                                 tokenBalance--
                                 grantAndOpen(store, target)
                             }
@@ -139,31 +157,26 @@ class AegisLockActivity : ComponentActivity() {
         finish()
     }
 
+    private fun invalidateForContextSwitch() {
+        val store = AegisStore(this)
+        store.clearActiveChallenge()
+        if (store.activeSession()?.policy?.mode?.rules?.resetStreakOnContextSwitch == true) store.updateProgress(0)
+        finish()
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (!completed) {
-            val store = AegisStore(this)
-            if (store.activeSession()?.policy?.mode?.rules?.resetStreakOnContextSwitch == true) store.updateProgress(0)
-            finish()
-        }
+        if (!completed) invalidateForContextSwitch()
     }
 
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
         super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
-        if (isInMultiWindowMode && !completed) {
-            val store = AegisStore(this)
-            if (store.activeSession()?.policy?.mode?.rules?.resetStreakOnContextSwitch == true) store.updateProgress(0)
-            finish()
-        }
+        if (isInMultiWindowMode && !completed) invalidateForContextSwitch()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        if (isInPictureInPictureMode && !completed) {
-            val store = AegisStore(this)
-            if (store.activeSession()?.policy?.mode?.rules?.resetStreakOnContextSwitch == true) store.updateProgress(0)
-            finish()
-        }
+        if (isInPictureInPictureMode && !completed) invalidateForContextSwitch()
     }
 
     companion object {

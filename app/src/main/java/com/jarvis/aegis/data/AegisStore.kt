@@ -1,6 +1,9 @@
 package com.jarvis.aegis.data
 
 import android.content.Context
+import com.jarvis.aegis.challenge.ActiveChallenge
+import com.jarvis.aegis.challenge.ChallengeCategory
+import com.jarvis.aegis.challenge.NumericChallenge
 import com.jarvis.aegis.profile.AgeBand
 import com.jarvis.aegis.profile.LearnerProfile
 import com.jarvis.aegis.profile.MotivationProfile
@@ -90,6 +93,53 @@ class AegisStore(context: Context) {
         ).takeIf { it.isActive(now) }
     }.getOrElse { clearSession(); null }
 
+    fun saveActiveChallenge(active: ActiveChallenge) = secure.putString(ACTIVE_CHALLENGE, JSONObject().apply {
+        put("sessionId", active.sessionId.toString())
+        put("target", active.targetPackage)
+        put("issuedAt", active.issuedAt.toString())
+        put("deadline", active.deadline.toString())
+        put("id", active.challenge.id.toString())
+        put("category", active.challenge.category.name)
+        put("prompt", active.challenge.prompt)
+        put("seconds", active.challenge.timeLimitSeconds)
+        put("signature", active.challenge.signature)
+        put("expected", active.challenge.expected)
+        put("unit", active.challenge.unit ?: "")
+        put("absoluteTolerance", active.challenge.absoluteTolerance)
+        put("relativeTolerance", active.challenge.relativeTolerance)
+    }.toString())
+
+    fun activeChallenge(): ActiveChallenge? = runCatching {
+        val json = JSONObject(secure.getString(ACTIVE_CHALLENGE) ?: return null)
+        ActiveChallenge(
+            sessionId = UUID.fromString(json.getString("sessionId")),
+            targetPackage = json.getString("target"),
+            issuedAt = Instant.parse(json.getString("issuedAt")),
+            deadline = Instant.parse(json.getString("deadline")),
+            challenge = NumericChallenge(
+                id = UUID.fromString(json.getString("id")),
+                category = ChallengeCategory.valueOf(json.getString("category")),
+                prompt = json.getString("prompt"),
+                timeLimitSeconds = json.getInt("seconds"),
+                signature = json.getString("signature"),
+                expected = json.getDouble("expected"),
+                unit = json.optString("unit").takeIf(String::isNotBlank),
+                absoluteTolerance = json.getDouble("absoluteTolerance"),
+                relativeTolerance = json.getDouble("relativeTolerance"),
+            ),
+        )
+    }.getOrElse { secure.remove(ACTIVE_CHALLENGE); null }
+
+    /** Returns true exactly once for the currently active challenge ID. */
+    fun consumeActiveChallenge(challengeId: UUID): Boolean = synchronized(CHALLENGE_LOCK) {
+        val current = activeChallenge() ?: return@synchronized false
+        if (current.challenge.id != challengeId) return@synchronized false
+        secure.remove(ACTIVE_CHALLENGE)
+        true
+    }
+
+    fun clearActiveChallenge() = secure.remove(ACTIVE_CHALLENGE)
+
     fun updateProgress(streak: Int, tokens: Int? = null) {
         val session = activeSession() ?: return
         saveSession(session.copy(streak = streak.coerceAtLeast(0)))
@@ -105,7 +155,7 @@ class AegisStore(context: Context) {
         return true
     }
 
-    fun clearSession() = secure.remove(SESSION, CONSENT, RECOVERY_VERIFIER, EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT, RECOVERY_ATTEMPTS)
+    fun clearSession() = secure.remove(SESSION, CONSENT, ACTIVE_CHALLENGE, RECOVERY_VERIFIER, EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT, RECOVERY_ATTEMPTS)
     fun saveRecoveryVerifier(verifier: String) = secure.putString(RECOVERY_VERIFIER, verifier)
     fun recoveryVerifier(): String? = secure.getString(RECOVERY_VERIFIER)
 
@@ -167,10 +217,12 @@ class AegisStore(context: Context) {
     }
 
     private companion object {
+        val CHALLENGE_LOCK = Any()
         const val NAME = "aegis_state_v1"
         const val PROFILE = "profile"
         const val SESSION = "session"
         const val CONSENT = "consent_record"
+        const val ACTIVE_CHALLENGE = "active_challenge"
         const val RECOVERY_VERIFIER = "recovery_verifier"
         const val EXIT_REQUESTED_AT = "exit_requested_at"
         const val EXIT_AVAILABLE_AT = "exit_available_at"
