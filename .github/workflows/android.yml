@@ -45,7 +45,18 @@ jobs:
         run: gradle tasks --no-daemon
 
       - name: Run unit tests and assemble debug APK
-        run: gradle clean testDebugUnitTest assembleDebug --stacktrace --no-daemon
+        run: |
+          set -o pipefail
+          gradle clean testDebugUnitTest assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log
+
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegis-build-diagnostics
+          path: build.log
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload unit-test reports
         if: always()
@@ -53,7 +64,7 @@ jobs:
         with:
           name: aegis-unit-test-reports
           path: app/build/reports/tests/testDebugUnitTest/
-          if-no-files-found: warn
+          if-no-files-found: ignore
           retention-days: 14
 
       - name: Upload debug APK
