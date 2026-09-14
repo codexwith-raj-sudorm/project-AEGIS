@@ -26,6 +26,7 @@ import com.jarvis.aegis.ui.screens.ActivationScreen
 import com.jarvis.aegis.ui.screens.DashboardScreen
 import com.jarvis.aegis.ui.screens.LearningScreen
 import com.jarvis.aegis.ui.screens.ProfileScreen
+import com.jarvis.aegis.ui.screens.PreflightScreen
 import com.jarvis.aegis.ui.screens.SessionExitScreen
 import com.jarvis.aegis.ui.screens.SessionSetupScreen
 import com.jarvis.aegis.ui.screens.launchableApps
@@ -65,14 +66,23 @@ class MainActivity : FragmentActivity() {
                         ownPackage = packageName,
                         availableSubjects = profile.subjects,
                         onContinue = { policy ->
-                            val enrollment = RecoveryCodeManager().enroll()
                             pendingPolicy = policy
-                            recoveryCode = enrollment.displayCode
-                            recoveryVerifier = enrollment.verifier
-                            destination = "activation"
+                            destination = "preflight"
                         },
                         onBack = { destination = "dashboard" },
                     )
+                    "preflight" -> pendingPolicy?.let { policy ->
+                        PreflightScreen(
+                            policy = policy,
+                            onContinue = {
+                                val enrollment = RecoveryCodeManager().enroll()
+                                recoveryCode = enrollment.displayCode
+                                recoveryVerifier = enrollment.verifier
+                                destination = "activation"
+                            },
+                            onCancel = { pendingPolicy = null; destination = "dashboard" },
+                        )
+                    } ?: run { destination = "dashboard" }
                     "activation" -> pendingPolicy?.let { policy ->
                         ActivationScreen(
                             policy = policy,

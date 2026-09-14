@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.0 — 2026-09-14
+
+- Add mandatory enforcement preflight before session authorization.
+- Block Strict and Hard activation when Accessibility interception or device authentication is unavailable.
+- Validate target installation, essential-package separation, encrypted recovery storage, and watchdog health.
+- Add notification readiness warnings and direct Accessibility settings guidance.
+- Run a Keystore AES-GCM round-trip self-test before strict enforcement can arm.
+
 ## 0.12.0 — 2026-09-14
 
 - Add monotonic and boot-aware time anchors backed by elapsed realtime and Android boot count.
