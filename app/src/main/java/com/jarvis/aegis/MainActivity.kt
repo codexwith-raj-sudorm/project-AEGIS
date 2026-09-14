@@ -16,6 +16,7 @@ import com.jarvis.aegis.data.AegisStore
 import com.jarvis.aegis.notification.AegisNotifications
 import com.jarvis.aegis.recovery.RecoveryCodeManager
 import com.jarvis.aegis.security.DeviceAuthenticator
+import com.jarvis.aegis.security.EssentialAccessResolver
 import com.jarvis.aegis.session.ConsentHasher
 import com.jarvis.aegis.session.ConsentRecord
 import com.jarvis.aegis.session.DeviceTimeSource
@@ -64,6 +65,7 @@ class MainActivity : FragmentActivity() {
                     "session" -> SessionSetupScreen(
                         apps = remember { launchableApps(packageManager) },
                         ownPackage = packageName,
+                        requiredEssentialPackages = remember { EssentialAccessResolver(this@MainActivity).requiredPackages() },
                         availableSubjects = profile.subjects,
                         onContinue = { policy ->
                             pendingPolicy = policy

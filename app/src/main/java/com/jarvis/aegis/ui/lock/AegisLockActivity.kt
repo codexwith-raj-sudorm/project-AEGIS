@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import com.jarvis.aegis.accountability.AccountabilityEvent
 import com.jarvis.aegis.accountability.AccountabilityMessages
 import com.jarvis.aegis.challenge.AnswerValidator
@@ -31,10 +32,13 @@ import com.jarvis.aegis.challenge.ChallengeCoordinator
 import com.jarvis.aegis.challenge.ValidationResult
 import com.jarvis.aegis.data.AegisStore
 import com.jarvis.aegis.recovery.WatchdogManager
+import com.jarvis.aegis.security.EssentialAccessResolver
+import com.jarvis.aegis.security.InterruptionClassifier
 import com.jarvis.aegis.session.rules
 import com.jarvis.aegis.ui.components.AegisButton
 import com.jarvis.aegis.ui.theme.AegisTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Instant
 
 class AegisLockActivity : ComponentActivity() {
@@ -166,7 +170,14 @@ class AegisLockActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (!completed) invalidateForContextSwitch()
+        if (!completed) lifecycleScope.launch {
+            delay(300)
+            val store = AegisStore(this@AegisLockActivity)
+            val essentials = store.activeSession()?.policy?.essentialPackages.orEmpty() +
+                EssentialAccessResolver(this@AegisLockActivity).requiredPackages()
+            val classifier = InterruptionClassifier(packageName, essentials)
+            if (classifier.shouldInvalidate(store.lastForegroundPackage())) invalidateForContextSwitch()
+        }
     }
 
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {

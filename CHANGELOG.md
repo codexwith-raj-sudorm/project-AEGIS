@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.0 — 2026-09-14
+
+- Resolve mandatory essential packages from Android roles, default dialer, input method, Settings, System UI, and permission controllers.
+- Make mandatory exemptions immutable during target and essential-app selection.
+- Reject activation when any required system/recovery exemption is missing.
+- Classify AEGIS, authentication, input-method, essential-system, and unrelated user-app transitions.
+- Add a grace interval so calls, credentials, keyboards, permissions, and system overlays do not trigger false context-switch penalties.
+
 ## 0.13.0 — 2026-09-14
 
 - Add mandatory enforcement preflight before session authorization.

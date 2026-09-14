@@ -43,6 +43,7 @@ fun launchableApps(packageManager: PackageManager): List<LaunchableApp> {
 fun SessionSetupScreen(
     apps: List<LaunchableApp>,
     ownPackage: String,
+    requiredEssentialPackages: Set<String>,
     availableSubjects: Set<String>,
     onContinue: (SessionPolicy) -> Unit,
     onBack: () -> Unit,
@@ -51,7 +52,7 @@ fun SessionSetupScreen(
     var minutes by remember { mutableFloatStateOf(45f) }
     var exitDelay by remember { mutableFloatStateOf(5f) }
     var targets by remember { mutableStateOf(emptySet<String>()) }
-    var essential by remember { mutableStateOf(setOf(ownPackage)) }
+    var essential by remember { mutableStateOf(requiredEssentialPackages + ownPackage) }
     var selectedSubjects by remember { mutableStateOf(availableSubjects.ifEmpty { setOf("Mathematics") }) }
     var difficulty by remember { mutableStateOf(ChallengeDifficulty.INTERMEDIATE) }
     var amnesty by remember { mutableStateOf(true) }
@@ -105,7 +106,7 @@ fun SessionSetupScreen(
                             essential = if (selected) essential + app.packageName else essential - app.packageName
                             if (selected) targets = targets - app.packageName
                         }
-                    })
+                    }, enabled = app.packageName !in requiredEssentialPackages)
                     Text("${app.label}\n${app.packageName}", Modifier.padding(top = 8.dp))
                 }
             }

@@ -64,9 +64,14 @@ class EnforcementPreflight(private val context: Context) {
 
     private fun essentials(policy: SessionPolicy): PreflightCheck {
         val overlap = policy.targetPackages.intersect(policy.essentialPackages)
-        return if (overlap.isEmpty() && context.packageName in policy.essentialPackages) {
-            pass("essentials", "Essential access", "AEGIS is exempt and target overlap is empty.")
-        } else blocker("essentials", "Essential access", "AEGIS must remain essential and no essential app may be targeted.")
+        val required = EssentialAccessResolver(context).requiredPackages()
+        val missing = required - policy.essentialPackages
+        return if (overlap.isEmpty() && missing.isEmpty()) {
+            pass("essentials", "Essential access", "${required.size} required system and recovery packages are exempt.")
+        } else blocker(
+            "essentials", "Essential access",
+            "Required exemptions missing: ${missing.joinToString().ifBlank { "none" }}; overlap: ${overlap.joinToString().ifBlank { "none" }}",
+        )
     }
 
     private fun encryptedStorage(): PreflightCheck = runCatching {

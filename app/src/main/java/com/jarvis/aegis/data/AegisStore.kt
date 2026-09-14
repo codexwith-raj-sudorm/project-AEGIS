@@ -31,6 +31,9 @@ class AegisStore(context: Context) {
     private val preferences = appContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
     private val secure = SecurePreferences(preferences)
 
+    fun recordForegroundPackage(packageName: String) = secure.putString(LAST_FOREGROUND, packageName)
+    fun lastForegroundPackage(): String? = secure.getString(LAST_FOREGROUND)
+
     fun clockSnapshot() = DeviceTimeSource(appContext).snapshot()
     fun timeAnchor() = DeviceTimeSource(appContext).anchor()
 
@@ -313,5 +316,6 @@ class AegisStore(context: Context) {
         const val TOKENS = "sincerity_tokens"
         const val RECOVERY_ATTEMPTS = "recovery_attempts"
         const val LAUNCH_ATTEMPT_PREFIX = "launch_attempt:"
+        const val LAST_FOREGROUND = "last_foreground"
     }
 }
