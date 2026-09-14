@@ -62,6 +62,8 @@ jobs:
           done
           diagnostic=$(awk '/FAILURE: Build failed/{capture=1} capture{print}' build.log | head -n 60 | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
           echo "::error title=Gradle failure detail::$diagnostic"
+          missing=$(find app/build -name missing_rules.txt -type f -print -exec cat {} \; | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+          if [ -n "$missing" ]; then echo "::error title=R8 missing rules::$missing"; fi
 
       - name: Upload build diagnostics
         if: failure()
