@@ -4,6 +4,7 @@
 -dontwarn org.spongycastle.**
 -dontwarn javax.activation.**
 -dontwarn javax.xml.bind.**
+-dontwarn com.gemalto.jp2.JP2Decoder
 
 # ML Kit discovers registrars through manifest metadata.
 -keep class com.google.mlkit.** { *; }
