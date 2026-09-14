@@ -29,6 +29,8 @@ import com.jarvis.aegis.accountability.AccountabilityEvent
 import com.jarvis.aegis.accountability.AccountabilityMessages
 import com.jarvis.aegis.challenge.AnswerValidator
 import com.jarvis.aegis.challenge.ChallengeCoordinator
+import com.jarvis.aegis.challenge.GateTransactionCoordinator
+import com.jarvis.aegis.challenge.GateTransactionStatus
 import com.jarvis.aegis.challenge.ValidationResult
 import com.jarvis.aegis.data.AegisStore
 import com.jarvis.aegis.recovery.WatchdogManager
@@ -39,7 +41,6 @@ import com.jarvis.aegis.ui.components.AegisButton
 import com.jarvis.aegis.ui.theme.AegisTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.time.Instant
 
 class AegisLockActivity : ComponentActivity() {
     private var completed = false
@@ -57,6 +58,7 @@ class AegisLockActivity : ComponentActivity() {
             AegisTheme {
                 val store = remember { AegisStore(this@AegisLockActivity) }
                 val coordinator = remember { ChallengeCoordinator(store) }
+                val transactions = remember { GateTransactionCoordinator(store) }
                 var active by remember { mutableStateOf(coordinator.currentOrCreate(session, target)) }
                 val challenge = active.challenge
                 var answer by remember(active.challenge.id) { mutableStateOf("") }
@@ -109,16 +111,13 @@ class AegisLockActivity : ComponentActivity() {
                     AegisButton("[ EXECUTE_SUBMIT ]", {
                         when (val result = AnswerValidator().validate(challenge, answer)) {
                             ValidationResult.Correct -> {
-                                if (!coordinator.consume(active)) {
-                                    status = "SUBMISSION REJECTED: CHALLENGE ALREADY CONSUMED."
-                                    active = coordinator.currentOrCreate(session, target)
+                                val transaction = transactions.acceptCorrect(challenge.id, target, java.time.Duration.ofMinutes(15))
+                                if (transaction.status == GateTransactionStatus.APPLIED) {
+                                    tokenBalance = transaction.tokens
+                                    openGrantedTarget(store, target)
                                 } else {
-                                    val nextStreak = (store.activeSession()?.streak ?: 0) + 1
-                                    if (nextStreak >= 20) {
-                                        tokenBalance++
-                                        store.updateProgress(0, tokenBalance)
-                                    } else store.updateProgress(nextStreak)
-                                    grantAndOpen(store, target)
+                                    status = "SUBMISSION REJECTED: ${transaction.status.name}."
+                                    active = coordinator.currentOrCreate(session, target)
                                 }
                             }
                             is ValidationResult.IncorrectUnit -> status = "UNIT REJECTED. EXPECTED ${result.expectedUnit}."
@@ -136,11 +135,11 @@ class AegisLockActivity : ComponentActivity() {
                     }, enabled = cooldownSeconds == 0)
                     if (session.policy.amnestyEnabled && session.policy.mode.rules.allowAmnesty && tokenBalance > 0) {
                         AegisButton("[ SPEND 1 SINCERITY POINT // 15 MINUTES ]", {
-                            if (store.spendToken()) {
-                                coordinator.consume(active)
-                                tokenBalance--
-                                grantAndOpen(store, target)
-                            }
+                            val transaction = transactions.spendToken(challenge.id, target, java.time.Duration.ofMinutes(15))
+                            if (transaction.status == GateTransactionStatus.APPLIED) {
+                                tokenBalance = transaction.tokens
+                                openGrantedTarget(store, target)
+                            } else status = "TOKEN TRANSACTION REJECTED: ${transaction.status.name}."
                         }, accent = true, enabled = cooldownSeconds == 0)
                     }
                     Text("LEAVING THIS GATE INVALIDATES THE CURRENT CHALLENGE.")
@@ -150,10 +149,9 @@ class AegisLockActivity : ComponentActivity() {
         window.decorView.post { watchdog.markGateHealthy() }
     }
 
-    private fun grantAndOpen(store: AegisStore, target: String) {
+    private fun openGrantedTarget(store: AegisStore, target: String) {
         completed = true
         store.resetLaunchAttempts(target)
-        store.grantTarget(target, Instant.now().plusSeconds(15 * 60))
         packageManager.getLaunchIntentForPackage(target)?.let {
             it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(it)

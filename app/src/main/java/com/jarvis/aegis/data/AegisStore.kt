@@ -3,6 +3,7 @@ package com.jarvis.aegis.data
 import android.content.Context
 import com.jarvis.aegis.challenge.ActiveChallenge
 import com.jarvis.aegis.challenge.ChallengeCategory
+import com.jarvis.aegis.challenge.GateTransaction
 import com.jarvis.aegis.challenge.NumericChallenge
 import com.jarvis.aegis.profile.AgeBand
 import com.jarvis.aegis.profile.LearnerProfile
@@ -175,6 +176,64 @@ class AegisStore(context: Context) {
 
     fun clearActiveChallenge() = secure.remove(ACTIVE_CHALLENGE)
 
+    fun saveGateTransaction(transaction: GateTransaction) = secure.putString(GATE_JOURNAL, JSONObject().apply {
+        put("id", transaction.id.toString())
+        put("challengeId", transaction.challengeId.toString())
+        put("sessionId", transaction.sessionId.toString())
+        put("target", transaction.target)
+        put("finalStreak", transaction.finalStreak)
+        put("finalTokens", transaction.finalTokens)
+        put("grantUntil", transaction.grantUntil.toString())
+        put("spendToken", transaction.spendToken)
+    }.toString())
+
+    fun wasChallengeCompleted(id: UUID): Boolean = completedChallengeIds().contains(id.toString())
+
+    fun recoverPendingGateTransaction() {
+        val raw = secure.getString(GATE_JOURNAL) ?: return
+        runCatching { applyGateTransaction(parseTransaction(JSONObject(raw))) }
+            .onFailure {
+                // A malformed journal cannot safely be applied. Disarm the session rather than guess.
+                clearSession()
+                secure.remove(GATE_JOURNAL)
+            }
+    }
+
+    fun applyGateTransaction(transaction: GateTransaction) = synchronized(CHALLENGE_LOCK) {
+        if (wasChallengeCompleted(transaction.challengeId)) {
+            secure.remove(GATE_JOURNAL)
+            return@synchronized
+        }
+        val session = activeSession()
+        if (session == null || session.id != transaction.sessionId) {
+            secure.remove(GATE_JOURNAL)
+            return@synchronized
+        }
+        secure.remove(ACTIVE_CHALLENGE)
+        saveSession(session.copy(streak = transaction.finalStreak.coerceAtLeast(0)))
+        secure.putInt(TOKENS, transaction.finalTokens.coerceAtLeast(0))
+        grantTarget(transaction.target, transaction.grantUntil)
+        val completed = (completedChallengeIds() + transaction.challengeId.toString()).takeLast(64)
+        secure.putString(COMPLETED_CHALLENGES, JSONArray(completed).toString())
+        secure.remove(GATE_JOURNAL)
+    }
+
+    private fun completedChallengeIds(): List<String> = runCatching {
+        val array = JSONArray(secure.getString(COMPLETED_CHALLENGES) ?: "[]")
+        List(array.length()) { array.getString(it) }
+    }.getOrDefault(emptyList())
+
+    private fun parseTransaction(json: JSONObject) = GateTransaction(
+        id = UUID.fromString(json.getString("id")),
+        challengeId = UUID.fromString(json.getString("challengeId")),
+        sessionId = UUID.fromString(json.getString("sessionId")),
+        target = json.getString("target"),
+        finalStreak = json.getInt("finalStreak"),
+        finalTokens = json.getInt("finalTokens"),
+        grantUntil = Instant.parse(json.getString("grantUntil")),
+        spendToken = json.getBoolean("spendToken"),
+    )
+
     fun updateProgress(streak: Int, tokens: Int? = null) {
         val session = activeSession() ?: return
         saveSession(session.copy(streak = streak.coerceAtLeast(0)))
@@ -190,7 +249,10 @@ class AegisStore(context: Context) {
         return true
     }
 
-    fun clearSession() = secure.remove(SESSION, CONSENT, ACTIVE_CHALLENGE, RECOVERY_VERIFIER, EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT, EXIT_TIMER, RECOVERY_ATTEMPTS)
+    fun clearSession() = secure.remove(
+        SESSION, CONSENT, ACTIVE_CHALLENGE, GATE_JOURNAL, COMPLETED_CHALLENGES,
+        RECOVERY_VERIFIER, EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT, EXIT_TIMER, RECOVERY_ATTEMPTS,
+    )
     fun saveRecoveryVerifier(verifier: String) = secure.putString(RECOVERY_VERIFIER, verifier)
     fun recoveryVerifier(): String? = secure.getString(RECOVERY_VERIFIER)
 
@@ -309,6 +371,8 @@ class AegisStore(context: Context) {
         const val SESSION = "session"
         const val CONSENT = "consent_record"
         const val ACTIVE_CHALLENGE = "active_challenge"
+        const val GATE_JOURNAL = "gate_transaction_journal"
+        const val COMPLETED_CHALLENGES = "completed_challenge_ids"
         const val RECOVERY_VERIFIER = "recovery_verifier"
         const val EXIT_REQUESTED_AT = "exit_requested_at"
         const val EXIT_AVAILABLE_AT = "exit_available_at"

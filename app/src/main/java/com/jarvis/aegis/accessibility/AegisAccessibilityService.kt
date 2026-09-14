@@ -17,7 +17,7 @@ class AegisAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val foregroundPackage = event.packageName?.toString() ?: return
-        val store = AegisStore(this)
+        val store = AegisStore(this).also { it.recoverPendingGateTransaction() }
         store.recordForegroundPackage(foregroundPackage)
         if (foregroundPackage == packageName) return
         if (WatchdogManager(this).isFailOpen()) return

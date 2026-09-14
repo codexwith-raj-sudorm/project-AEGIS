@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.0 — 2026-09-14
+
+- Add an encrypted write-ahead journal for gate economy and access transactions.
+- Apply challenge consumption, streak changes, token rewards/spending, and grants as idempotent transactions.
+- Recover interrupted transactions at app and Accessibility Service startup.
+- Retain bounded completed-challenge IDs to reject replayed rewards.
+- Preserve the original grant deadline during crash recovery so replay cannot extend access.
+- Fail open by decommissioning sessions when a transaction journal is malformed.
+
 ## 0.14.0 — 2026-09-14
 
 - Resolve mandatory essential packages from Android roles, default dialer, input method, Settings, System UI, and permission controllers.

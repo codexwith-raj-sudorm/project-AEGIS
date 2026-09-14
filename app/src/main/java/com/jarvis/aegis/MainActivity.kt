@@ -37,7 +37,7 @@ import java.time.Instant
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val store = AegisStore(this)
+        val store = AegisStore(this).also { it.recoverPendingGateTransaction() }
         val notifications = AegisNotifications(this).also { it.createChannels() }
         setContent {
             AegisTheme {
