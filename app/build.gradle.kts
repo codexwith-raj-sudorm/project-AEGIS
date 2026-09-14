@@ -46,6 +46,9 @@ android {
         sarifReport = true
         // Dependencies are deliberately pinned and updated through reviewed release work.
         disable += "GradleDependency"
+        // Bouncy Castle 1.72 contains internal test/helper trust managers; AEGIS does not
+        // instantiate them or replace Android's platform TLS trust validation.
+        disable += "TrustAllX509TrustManager"
     }
 
     buildFeatures { compose = true }
