@@ -1,5 +1,7 @@
 # Project AEGIS
 
+> Development milestones are tracked in [ROADMAP.md](ROADMAP.md): v1.0 completes the blocking system, and v2.0 completes the learning system.
+
 ## Product Requirements Document — v3.0: Strict, Safe, and Recoverable
 
 ## 1. Executive summary
