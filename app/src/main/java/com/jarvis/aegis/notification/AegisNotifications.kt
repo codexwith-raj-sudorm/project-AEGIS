@@ -16,14 +16,12 @@ import com.jarvis.aegis.session.FocusSession
 
 class AegisNotifications(private val context: Context) {
     fun createChannels() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.getSystemService(NotificationManager::class.java).createNotificationChannels(
-                listOf(
-                    NotificationChannel(SESSION_CHANNEL, "Active focus sessions", NotificationManager.IMPORTANCE_LOW),
-                    NotificationChannel(SAFETY_CHANNEL, "AEGIS safety status", NotificationManager.IMPORTANCE_HIGH),
-                ),
-            )
-        }
+        context.getSystemService(NotificationManager::class.java).createNotificationChannels(
+            listOf(
+                NotificationChannel(SESSION_CHANNEL, "Active focus sessions", NotificationManager.IMPORTANCE_LOW),
+                NotificationChannel(SAFETY_CHANNEL, "AEGIS safety status", NotificationManager.IMPORTANCE_HIGH),
+            ),
+        )
     }
 
     fun showActiveSession(session: FocusSession) {
