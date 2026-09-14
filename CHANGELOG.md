@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.17.0 — 2026-09-14
+
+- Hide third-party overlay windows above the challenge gate on Android 12+ while retaining Android accessibility services.
+- Detect package installation and replacement during active sessions and issue a local security notice.
+- Warn when additional Android profiles limit personal-mode enforcement scope.
+- Detect same-label launcher variants that may represent cloned, lite, beta, or alternate clients.
+- Keep gate and internal Learning Mode surfaces non-exported and avoid public deep-link entry points.
+
 ## 0.16.0 — 2026-09-14
 
 - Add Java, Kotlin, and Python code-output challenge types.

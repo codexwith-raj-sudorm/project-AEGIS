@@ -6,6 +6,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.UserManager
+import android.content.Intent
 import android.view.accessibility.AccessibilityManager
 import androidx.biometric.BiometricManager
 import androidx.core.content.ContextCompat
@@ -31,6 +33,8 @@ class EnforcementPreflight(private val context: Context) {
             essentials(policy),
             encryptedStorage(),
             watchdog(policy),
+            profileScope(),
+            alternateClients(policy),
             notifications(),
         ),
     )
@@ -88,6 +92,25 @@ class EnforcementPreflight(private val context: Context) {
             policy.mode == SessionMode.STANDARD -> warning("watchdog", "Safety watchdog", "Fail-Open is active; interception remains paused.")
             else -> blocker("watchdog", "Safety watchdog", "Wait for Fail-Open recovery to end before Strict or Hard activation.")
         }
+    }
+
+    private fun profileScope(): PreflightCheck {
+        val profiles = context.getSystemService(UserManager::class.java)?.userProfiles?.size ?: 1
+        return if (profiles <= 1) pass("profiles", "Android profiles", "Only the current personal profile was detected.")
+        else warning("profiles", "Android profiles", "$profiles profiles were detected. Personal-mode enforcement applies only where AEGIS is installed and enabled.")
+    }
+
+    private fun alternateClients(policy: SessionPolicy): PreflightCheck {
+        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val activities = context.packageManager.queryIntentActivities(launcherIntent, 0)
+        val targetLabels = activities.filter { it.activityInfo.packageName in policy.targetPackages }
+            .map { it.loadLabel(context.packageManager).toString().lowercase() }.toSet()
+        val possible = activities.filter {
+            it.activityInfo.packageName !in policy.targetPackages &&
+                it.loadLabel(context.packageManager).toString().lowercase() in targetLabels
+        }.map { it.activityInfo.packageName }.distinct()
+        return if (possible.isEmpty()) pass("variants", "Alternate app variants", "No same-label launcher variants were detected.")
+        else warning("variants", "Alternate app variants", "Review possible clones or alternate clients: ${possible.joinToString()}")
     }
 
     private fun notifications(): PreflightCheck {

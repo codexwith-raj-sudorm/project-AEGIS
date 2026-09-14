@@ -41,6 +41,15 @@ class AegisNotifications(private val context: Context) {
         )
     }
 
+    fun showSecurityNotice(title: String, message: String) = notify(
+        SECURITY_ID,
+        NotificationCompat.Builder(context, SAFETY_CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setContentTitle(title).setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setAutoCancel(true).build(),
+    )
+
     fun showFailOpen(reason: String) = notify(
         SAFETY_ID,
         NotificationCompat.Builder(context, SAFETY_CHANNEL)
@@ -62,5 +71,6 @@ class AegisNotifications(private val context: Context) {
         const val SAFETY_CHANNEL = "aegis_safety"
         private const val SESSION_ID = 1001
         private const val SAFETY_ID = 1002
+        private const val SECURITY_ID = 1003
     }
 }

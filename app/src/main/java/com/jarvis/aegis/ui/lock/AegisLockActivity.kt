@@ -49,6 +49,7 @@ class AegisLockActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        if (android.os.Build.VERSION.SDK_INT >= 31) window.setHideOverlayWindows(true)
         val watchdog = WatchdogManager(this)
         if (!watchdog.beginGateLaunch()) return finish()
         val target = intent.getStringExtra(EXTRA_TARGET) ?: return finish()
