@@ -56,7 +56,7 @@ class AegisLockActivity : ComponentActivity() {
                 var active by remember { mutableStateOf(coordinator.currentOrCreate(session, target)) }
                 val challenge = active.challenge
                 var answer by remember(active.challenge.id) { mutableStateOf("") }
-                var seconds by remember(active.challenge.id) { mutableIntStateOf(active.remainingSeconds(Instant.now())) }
+                var seconds by remember(active.challenge.id) { mutableIntStateOf(active.remainingSeconds(store.clockSnapshot()) ?: 0) }
                 val profile = remember { store.profile() }
                 val accountability = remember { AccountabilityMessages() }
                 var tokenBalance by remember { mutableIntStateOf(store.tokens()) }
@@ -73,7 +73,7 @@ class AegisLockActivity : ComponentActivity() {
                     while (cooldownSeconds > 0) delay(250)
                     while (seconds > 0) {
                         delay(250)
-                        seconds = active.remainingSeconds(Instant.now())
+                        seconds = active.remainingSeconds(store.clockSnapshot()) ?: 0
                     }
                     if (coordinator.consume(active)) {
                         store.updateProgress(0)

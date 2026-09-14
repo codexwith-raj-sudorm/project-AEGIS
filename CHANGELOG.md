@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0 — 2026-09-14
+
+- Add monotonic and boot-aware time anchors backed by elapsed realtime and Android boot count.
+- Detect elapsed-time rollback, wall-clock rollback, and excessive same-boot clock drift.
+- Apply conservative deadline reconciliation after reboot and fail open on impossible time state.
+- Anchor sessions, persisted challenges, access grants, launch cooldowns, delayed exits, and recovery backoff.
+- Restore challenge timers from monotonic remaining time instead of adjustable wall time.
+
 ## 0.11.0 — 2026-09-13
 
 - Persist active challenge parameters and encrypted expected answers across activity recreation.

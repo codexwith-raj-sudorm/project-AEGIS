@@ -18,6 +18,7 @@ import com.jarvis.aegis.recovery.RecoveryCodeManager
 import com.jarvis.aegis.security.DeviceAuthenticator
 import com.jarvis.aegis.session.ConsentHasher
 import com.jarvis.aegis.session.ConsentRecord
+import com.jarvis.aegis.session.DeviceTimeSource
 import com.jarvis.aegis.session.FocusSession
 import com.jarvis.aegis.session.SessionPolicy
 import com.jarvis.aegis.session.rules
@@ -78,7 +79,8 @@ class MainActivity : FragmentActivity() {
                             recoveryCode = recoveryCode,
                             onAuthenticate = { callback -> DeviceAuthenticator(this@MainActivity).authenticate(callback) },
                             onActivate = {
-                                val activated = FocusSession(policy = policy, activatedAt = Instant.now())
+                                val anchor = DeviceTimeSource(this@MainActivity).anchor()
+                                val activated = FocusSession(policy = policy, activatedAt = anchor.wallTime, timeAnchor = anchor)
                                 store.saveRecoveryVerifier(recoveryVerifier)
                                 store.saveConsent(
                                     ConsentRecord(

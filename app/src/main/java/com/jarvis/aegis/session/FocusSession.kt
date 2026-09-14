@@ -40,6 +40,12 @@ data class FocusSession(
     val expiresAt: Instant = activatedAt.plus(policy.duration),
     val streak: Int = 0,
     val interrupted: Boolean = false,
+    val timeAnchor: TimeAnchor? = null,
 ) {
     fun isActive(now: Instant): Boolean = !interrupted && now.isBefore(expiresAt)
+    fun deadlineState(now: ClockSnapshot): DeadlineState = when {
+        interrupted -> DeadlineState.EXPIRED
+        timeAnchor == null -> if (now.wallTime.isBefore(expiresAt)) DeadlineState.ACTIVE else DeadlineState.EXPIRED
+        else -> TimeIntegrity.evaluate(timeAnchor, policy.duration, now)
+    }
 }

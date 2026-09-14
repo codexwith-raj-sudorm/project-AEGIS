@@ -11,10 +11,14 @@ import com.jarvis.aegis.recovery.AttemptState
 import com.jarvis.aegis.security.SecurePreferences
 import com.jarvis.aegis.session.ChallengeDifficulty
 import com.jarvis.aegis.session.ConsentRecord
+import com.jarvis.aegis.session.DeadlineState
+import com.jarvis.aegis.session.DeviceTimeSource
 import com.jarvis.aegis.session.FocusSession
 import com.jarvis.aegis.session.LaunchAttemptState
 import com.jarvis.aegis.session.SessionMode
 import com.jarvis.aegis.session.SessionPolicy
+import com.jarvis.aegis.session.TimeAnchor
+import com.jarvis.aegis.session.TimeIntegrity
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Duration
@@ -23,8 +27,12 @@ import java.util.UUID
 
 /** Keystore-encrypted state with fail-open parsing and legacy plaintext migration. */
 class AegisStore(context: Context) {
-    private val preferences = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val preferences = appContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
     private val secure = SecurePreferences(preferences)
+
+    fun clockSnapshot() = DeviceTimeSource(appContext).snapshot()
+    fun timeAnchor() = DeviceTimeSource(appContext).anchor()
 
     fun saveProfile(profile: LearnerProfile) = secure.putString(PROFILE, JSONObject().apply {
         put("name", profile.displayName)
@@ -68,6 +76,11 @@ class AegisStore(context: Context) {
         put("difficulty", session.policy.difficulty.name)
         put("streak", session.streak)
         put("interrupted", session.interrupted)
+        session.timeAnchor?.let { anchor ->
+            put("anchorWall", anchor.wallTime.toString())
+            put("anchorElapsed", anchor.elapsedRealtimeMs)
+            put("anchorBoot", anchor.bootCount)
+        }
     }.toString())
 
     /** Any undecryptable, malformed, expired, or impossible session fails open. */
@@ -86,11 +99,22 @@ class AegisStore(context: Context) {
             challengeSubjects = json.optJSONArray("challengeSubjects")?.toStringSet() ?: setOf("Mathematics"),
             difficulty = ChallengeDifficulty.valueOf(json.optString("difficulty", ChallengeDifficulty.INTERMEDIATE.name)),
         )
+        val anchor = json.optString("anchorWall").takeIf(String::isNotBlank)?.let {
+            TimeAnchor(
+                wallTime = Instant.parse(it),
+                elapsedRealtimeMs = json.getLong("anchorElapsed"),
+                bootCount = json.getInt("anchorBoot"),
+            )
+        }
         FocusSession(
             id = UUID.fromString(json.getString("id")), policy = policy,
             activatedAt = activated, expiresAt = expires,
             streak = json.optInt("streak"), interrupted = json.optBoolean("interrupted"),
-        ).takeIf { it.isActive(now) }
+            timeAnchor = anchor,
+        ).takeIf { session ->
+            val state = session.deadlineState(DeviceTimeSource(appContext).snapshot())
+            state == DeadlineState.ACTIVE
+        } ?: clearSession().let { null }
     }.getOrElse { clearSession(); null }
 
     fun saveActiveChallenge(active: ActiveChallenge) = secure.putString(ACTIVE_CHALLENGE, JSONObject().apply {
@@ -107,6 +131,11 @@ class AegisStore(context: Context) {
         put("unit", active.challenge.unit ?: "")
         put("absoluteTolerance", active.challenge.absoluteTolerance)
         put("relativeTolerance", active.challenge.relativeTolerance)
+        active.timeAnchor?.let { anchor ->
+            put("anchorWall", anchor.wallTime.toString())
+            put("anchorElapsed", anchor.elapsedRealtimeMs)
+            put("anchorBoot", anchor.bootCount)
+        }
     }.toString())
 
     fun activeChallenge(): ActiveChallenge? = runCatching {
@@ -116,6 +145,9 @@ class AegisStore(context: Context) {
             targetPackage = json.getString("target"),
             issuedAt = Instant.parse(json.getString("issuedAt")),
             deadline = Instant.parse(json.getString("deadline")),
+            timeAnchor = json.optString("anchorWall").takeIf(String::isNotBlank)?.let {
+                TimeAnchor(Instant.parse(it), json.getLong("anchorElapsed"), json.getInt("anchorBoot"))
+            },
             challenge = NumericChallenge(
                 id = UUID.fromString(json.getString("id")),
                 category = ChallengeCategory.valueOf(json.getString("category")),
@@ -155,62 +187,113 @@ class AegisStore(context: Context) {
         return true
     }
 
-    fun clearSession() = secure.remove(SESSION, CONSENT, ACTIVE_CHALLENGE, RECOVERY_VERIFIER, EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT, RECOVERY_ATTEMPTS)
+    fun clearSession() = secure.remove(SESSION, CONSENT, ACTIVE_CHALLENGE, RECOVERY_VERIFIER, EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT, EXIT_TIMER, RECOVERY_ATTEMPTS)
     fun saveRecoveryVerifier(verifier: String) = secure.putString(RECOVERY_VERIFIER, verifier)
     fun recoveryVerifier(): String? = secure.getString(RECOVERY_VERIFIER)
 
     fun saveExitRequest(requestedAt: Instant, availableAt: Instant) {
-        secure.putLong(EXIT_REQUESTED_AT, requestedAt.toEpochMilli())
-        secure.putLong(EXIT_AVAILABLE_AT, availableAt.toEpochMilli())
+        val snapshot = clockSnapshot().copy(wallTime = requestedAt)
+        secure.putString(EXIT_TIMER, JSONObject().apply {
+            put("wall", snapshot.wallTime.toString())
+            put("elapsed", snapshot.elapsedRealtimeMs)
+            put("boot", snapshot.bootCount)
+            put("durationMs", Duration.between(requestedAt, availableAt).toMillis().coerceAtLeast(0))
+        }.toString())
+        secure.remove(EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT)
     }
 
-    fun exitAvailableAt(): Instant? = secure.getLong(EXIT_AVAILABLE_AT)
-        .takeIf { it > 0L }?.let(Instant::ofEpochMilli)
+    fun exitAvailableAt(): Instant? = runCatching {
+        val raw = secure.getString(EXIT_TIMER)
+        if (raw == null) {
+            return secure.getLong(EXIT_AVAILABLE_AT).takeIf { it > 0L }?.let(Instant::ofEpochMilli)
+        }
+        val json = JSONObject(raw)
+        val anchor = TimeAnchor(Instant.parse(json.getString("wall")), json.getLong("elapsed"), json.getInt("boot"))
+        val duration = Duration.ofMillis(json.getLong("durationMs"))
+        val snapshot = clockSnapshot()
+        when (TimeIntegrity.evaluate(anchor, duration, snapshot)) {
+            DeadlineState.ACTIVE -> snapshot.wallTime.plus(TimeIntegrity.remaining(anchor, duration, snapshot)!!)
+            DeadlineState.EXPIRED -> snapshot.wallTime
+            DeadlineState.INVALID -> null.also { secure.remove(EXIT_TIMER) }
+        }
+    }.getOrElse { secure.remove(EXIT_TIMER); null }
 
-    fun cancelExitRequest() = secure.remove(EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT)
+    fun cancelExitRequest() = secure.remove(EXIT_REQUESTED_AT, EXIT_AVAILABLE_AT, EXIT_TIMER)
 
     fun recoveryAttemptState(): AttemptState = runCatching {
         val json = JSONObject(secure.getString(RECOVERY_ATTEMPTS) ?: return AttemptState())
-        AttemptState(
-            failures = json.optInt("failures").coerceAtLeast(0),
-            blockedUntil = json.optString("blockedUntil").takeIf(String::isNotBlank)?.let(Instant::parse),
-        )
-    }.getOrDefault(AttemptState())
+        val snapshot = clockSnapshot()
+        val blockedUntil = if (json.has("anchorWall") && json.optLong("durationMs") > 0) {
+            val anchor = TimeAnchor(Instant.parse(json.getString("anchorWall")), json.getLong("anchorElapsed"), json.getInt("anchorBoot"))
+            val duration = Duration.ofMillis(json.getLong("durationMs"))
+            TimeIntegrity.remaining(anchor, duration, snapshot)?.let { snapshot.wallTime.plus(it) }
+        } else json.optString("blockedUntil").takeIf(String::isNotBlank)?.let(Instant::parse)
+        AttemptState(json.optInt("failures").coerceAtLeast(0), blockedUntil)
+    }.getOrElse { AttemptState() }
 
-    fun saveRecoveryAttemptState(state: AttemptState) = secure.putString(
-        RECOVERY_ATTEMPTS,
-        JSONObject().apply {
+    fun saveRecoveryAttemptState(state: AttemptState) {
+        val snapshot = clockSnapshot()
+        val duration = state.blockedUntil?.let { Duration.between(snapshot.wallTime, it).coerceAtLeast(Duration.ZERO) } ?: Duration.ZERO
+        secure.putString(RECOVERY_ATTEMPTS, JSONObject().apply {
             put("failures", state.failures)
             put("blockedUntil", state.blockedUntil?.toString() ?: "")
-        }.toString(),
-    )
+            put("anchorWall", snapshot.wallTime.toString())
+            put("anchorElapsed", snapshot.elapsedRealtimeMs)
+            put("anchorBoot", snapshot.bootCount)
+            put("durationMs", duration.toMillis())
+        }.toString())
+    }
 
     fun launchAttemptState(packageName: String): LaunchAttemptState = runCatching {
         val json = JSONObject(secure.getString("$LAUNCH_ATTEMPT_PREFIX$packageName") ?: return LaunchAttemptState())
+        val snapshot = clockSnapshot()
+        val cooldownUntil = if (json.has("anchorWall")) {
+            val anchor = TimeAnchor(Instant.parse(json.getString("anchorWall")), json.getLong("anchorElapsed"), json.getInt("anchorBoot"))
+            val duration = Duration.ofMillis(json.getLong("cooldownDurationMs"))
+            TimeIntegrity.remaining(anchor, duration, snapshot)?.let { snapshot.wallTime.plus(it) } ?: Instant.EPOCH
+        } else Instant.parse(json.getString("cooldownUntil"))
         LaunchAttemptState(
             attempts = json.optInt("attempts").coerceAtLeast(0),
             windowStartedAt = Instant.parse(json.getString("windowStartedAt")),
-            cooldownUntil = Instant.parse(json.getString("cooldownUntil")),
+            cooldownUntil = cooldownUntil,
         )
-    }.getOrDefault(LaunchAttemptState())
+    }.getOrElse { resetLaunchAttempts(packageName); LaunchAttemptState() }
 
     fun resetLaunchAttempts(packageName: String) = secure.remove("$LAUNCH_ATTEMPT_PREFIX$packageName")
 
-    fun saveLaunchAttemptState(packageName: String, state: LaunchAttemptState) = secure.putString(
-        "$LAUNCH_ATTEMPT_PREFIX$packageName",
-        JSONObject().apply {
-            put("attempts", state.attempts)
-            put("windowStartedAt", state.windowStartedAt.toString())
-            put("cooldownUntil", state.cooldownUntil.toString())
-        }.toString(),
-    )
+    fun saveLaunchAttemptState(packageName: String, state: LaunchAttemptState) {
+        val snapshot = clockSnapshot()
+        secure.putString(
+            "$LAUNCH_ATTEMPT_PREFIX$packageName",
+            JSONObject().apply {
+                put("attempts", state.attempts)
+                put("windowStartedAt", state.windowStartedAt.toString())
+                put("cooldownUntil", state.cooldownUntil.toString())
+                put("anchorWall", snapshot.wallTime.toString())
+                put("anchorElapsed", snapshot.elapsedRealtimeMs)
+                put("anchorBoot", snapshot.bootCount)
+                put("cooldownDurationMs", Duration.between(snapshot.wallTime, state.cooldownUntil).toMillis().coerceAtLeast(0))
+            }.toString(),
+        )
+    }
 
-    // Access grants are short-lived enforcement metadata rather than sensitive profile content.
-    fun grantTarget(packageName: String, until: Instant) = preferences.edit()
-        .putLong("grant:$packageName", until.toEpochMilli()).apply()
+    fun grantTarget(packageName: String, until: Instant) {
+        val snapshot = clockSnapshot()
+        val duration = Duration.between(snapshot.wallTime, until).coerceAtLeast(Duration.ZERO)
+        secure.putString("grant:$packageName", JSONObject().apply {
+            put("wall", snapshot.wallTime.toString())
+            put("elapsed", snapshot.elapsedRealtimeMs)
+            put("boot", snapshot.bootCount)
+            put("durationMs", duration.toMillis())
+        }.toString())
+    }
 
-    fun isGranted(packageName: String, now: Instant = Instant.now()): Boolean =
-        preferences.getLong("grant:$packageName", 0) > now.toEpochMilli()
+    fun isGranted(packageName: String, now: Instant = Instant.now()): Boolean = runCatching {
+        val json = JSONObject(secure.getString("grant:$packageName") ?: return false)
+        val anchor = TimeAnchor(Instant.parse(json.getString("wall")), json.getLong("elapsed"), json.getInt("boot"))
+        val duration = Duration.ofMillis(json.getLong("durationMs"))
+        TimeIntegrity.evaluate(anchor, duration, clockSnapshot().copy(wallTime = now)) == DeadlineState.ACTIVE
+    }.getOrElse { secure.remove("grant:$packageName"); false }
 
     private fun JSONArray.toStringSet() = buildSet {
         for (index in 0 until length()) add(getString(index))
@@ -226,6 +309,7 @@ class AegisStore(context: Context) {
         const val RECOVERY_VERIFIER = "recovery_verifier"
         const val EXIT_REQUESTED_AT = "exit_requested_at"
         const val EXIT_AVAILABLE_AT = "exit_available_at"
+        const val EXIT_TIMER = "exit_timer"
         const val TOKENS = "sincerity_tokens"
         const val RECOVERY_ATTEMPTS = "recovery_attempts"
         const val LAUNCH_ATTEMPT_PREFIX = "launch_attempt:"
