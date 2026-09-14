@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.0 — 2026-09-14
+
+- Add Java, Kotlin, and Python code-output challenge types.
+- Select programming challenges when Computer Science or programming subjects are configured.
+- Remove mathematics fallback for recognized Computer Science sessions.
+- Persist encrypted programming language, prompt, and expected-output state across recreation.
+- Add whitespace- and line-ending-aware output validation without altering meaningful output tokens.
+- Show all configured learner subjects during session enrollment.
+
 ## 0.15.0 — 2026-09-14
 
 - Add an encrypted write-ahead journal for gate economy and access transactions.

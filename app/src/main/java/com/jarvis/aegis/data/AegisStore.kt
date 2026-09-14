@@ -3,8 +3,10 @@ package com.jarvis.aegis.data
 import android.content.Context
 import com.jarvis.aegis.challenge.ActiveChallenge
 import com.jarvis.aegis.challenge.ChallengeCategory
+import com.jarvis.aegis.challenge.CodeOutputChallenge
 import com.jarvis.aegis.challenge.GateTransaction
 import com.jarvis.aegis.challenge.NumericChallenge
+import com.jarvis.aegis.challenge.ProgrammingLanguage
 import com.jarvis.aegis.profile.AgeBand
 import com.jarvis.aegis.profile.LearnerProfile
 import com.jarvis.aegis.profile.MotivationProfile
@@ -131,10 +133,20 @@ class AegisStore(context: Context) {
         put("prompt", active.challenge.prompt)
         put("seconds", active.challenge.timeLimitSeconds)
         put("signature", active.challenge.signature)
-        put("expected", active.challenge.expected)
-        put("unit", active.challenge.unit ?: "")
-        put("absoluteTolerance", active.challenge.absoluteTolerance)
-        put("relativeTolerance", active.challenge.relativeTolerance)
+        when (val challenge = active.challenge) {
+            is NumericChallenge -> {
+                put("type", "numeric")
+                put("expected", challenge.expected)
+                put("unit", challenge.unit ?: "")
+                put("absoluteTolerance", challenge.absoluteTolerance)
+                put("relativeTolerance", challenge.relativeTolerance)
+            }
+            is CodeOutputChallenge -> {
+                put("type", "code_output")
+                put("language", challenge.language.name)
+                put("expectedOutput", challenge.expectedOutput)
+            }
+        }
         active.timeAnchor?.let { anchor ->
             put("anchorWall", anchor.wallTime.toString())
             put("anchorElapsed", anchor.elapsedRealtimeMs)
@@ -152,17 +164,28 @@ class AegisStore(context: Context) {
             timeAnchor = json.optString("anchorWall").takeIf(String::isNotBlank)?.let {
                 TimeAnchor(Instant.parse(it), json.getLong("anchorElapsed"), json.getInt("anchorBoot"))
             },
-            challenge = NumericChallenge(
-                id = UUID.fromString(json.getString("id")),
-                category = ChallengeCategory.valueOf(json.getString("category")),
-                prompt = json.getString("prompt"),
-                timeLimitSeconds = json.getInt("seconds"),
-                signature = json.getString("signature"),
-                expected = json.getDouble("expected"),
-                unit = json.optString("unit").takeIf(String::isNotBlank),
-                absoluteTolerance = json.getDouble("absoluteTolerance"),
-                relativeTolerance = json.getDouble("relativeTolerance"),
-            ),
+            challenge = when (json.optString("type", "numeric")) {
+                "code_output" -> CodeOutputChallenge(
+                    id = UUID.fromString(json.getString("id")),
+                    category = ChallengeCategory.valueOf(json.getString("category")),
+                    prompt = json.getString("prompt"),
+                    timeLimitSeconds = json.getInt("seconds"),
+                    signature = json.getString("signature"),
+                    language = ProgrammingLanguage.valueOf(json.getString("language")),
+                    expectedOutput = json.getString("expectedOutput"),
+                )
+                else -> NumericChallenge(
+                    id = UUID.fromString(json.getString("id")),
+                    category = ChallengeCategory.valueOf(json.getString("category")),
+                    prompt = json.getString("prompt"),
+                    timeLimitSeconds = json.getInt("seconds"),
+                    signature = json.getString("signature"),
+                    expected = json.getDouble("expected"),
+                    unit = json.optString("unit").takeIf(String::isNotBlank),
+                    absoluteTolerance = json.getDouble("absoluteTolerance"),
+                    relativeTolerance = json.getDouble("relativeTolerance"),
+                )
+            },
         )
     }.getOrElse { secure.remove(ACTIVE_CHALLENGE); null }
 

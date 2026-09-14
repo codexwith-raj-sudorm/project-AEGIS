@@ -11,6 +11,13 @@ sealed interface ValidationResult {
 }
 
 class AnswerValidator {
+    fun validate(challenge: Challenge, rawAnswer: String): ValidationResult = when (challenge) {
+        is NumericChallenge -> validate(challenge, rawAnswer)
+        is CodeOutputChallenge -> if (normalizeOutput(rawAnswer) == normalizeOutput(challenge.expectedOutput)) {
+            ValidationResult.Correct
+        } else ValidationResult.Incorrect(null)
+    }
+
     fun validate(challenge: NumericChallenge, rawAnswer: String): ValidationResult {
         val normalized = rawAnswer.trim().lowercase()
         val match = NUMBER.find(normalized) ?: return ValidationResult.InvalidFormat
@@ -23,6 +30,12 @@ class AnswerValidator {
         val tolerance = max(challenge.absoluteTolerance, abs(challenge.expected) * challenge.relativeTolerance)
         return if (difference <= tolerance) ValidationResult.Correct else ValidationResult.Incorrect(challenge.unit)
     }
+
+    private fun normalizeOutput(output: String): String = output
+        .replace("\r\n", "\n")
+        .trim()
+        .lines()
+        .joinToString("\n") { line -> line.trimEnd().replace(Regex("[ \\t]+"), " ") }
 
     private fun normalizeUnit(unit: String): String = when (unit.lowercase().replace(" ", "")) {
         "meter", "meters", "metre", "metres" -> "m"

@@ -11,7 +11,7 @@ import java.util.UUID
 data class ActiveChallenge(
     val sessionId: UUID,
     val targetPackage: String,
-    val challenge: NumericChallenge,
+    val challenge: Challenge,
     val issuedAt: Instant,
     val deadline: Instant,
     val timeAnchor: TimeAnchor? = null,

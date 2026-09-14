@@ -79,8 +79,8 @@ fun SessionSetupScreen(
             ChallengeDifficulty.entries.forEach { FilterChip(difficulty == it, { difficulty = it }, { Text(it.name) }) }
         }
         Text("CHALLENGE SUBJECTS")
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            availableSubjects.take(3).forEach { subject ->
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            availableSubjects.forEach { subject ->
                 FilterChip(subject in selectedSubjects, {
                     selectedSubjects = if (subject in selectedSubjects && selectedSubjects.size > 1) selectedSubjects - subject else selectedSubjects + subject
                 }, { Text(subject.uppercase()) })

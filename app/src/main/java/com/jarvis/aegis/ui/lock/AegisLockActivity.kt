@@ -31,6 +31,7 @@ import com.jarvis.aegis.challenge.AnswerValidator
 import com.jarvis.aegis.challenge.ChallengeCoordinator
 import com.jarvis.aegis.challenge.GateTransactionCoordinator
 import com.jarvis.aegis.challenge.GateTransactionStatus
+import com.jarvis.aegis.challenge.NumericChallenge
 import com.jarvis.aegis.challenge.ValidationResult
 import com.jarvis.aegis.data.AegisStore
 import com.jarvis.aegis.recovery.WatchdogManager
@@ -104,9 +105,11 @@ class AegisLockActivity : ComponentActivity() {
                     Text(challenge.prompt)
                     OutlinedTextField(
                         value = answer, onValueChange = { answer = it.take(32) },
-                        label = { Text("ENTER VALUE${challenge.unit?.let { " ($it)" } ?: ""}") },
+                        label = { Text("ENTER OUTPUT${(challenge as? NumericChallenge)?.unit?.let { " ($it)" } ?: ""}") },
                         modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = if (challenge is NumericChallenge) KeyboardType.Decimal else KeyboardType.Text,
+                        ),
                     )
                     AegisButton("[ EXECUTE_SUBMIT ]", {
                         when (val result = AnswerValidator().validate(challenge, answer)) {
