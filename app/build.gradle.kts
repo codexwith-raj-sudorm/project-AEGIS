@@ -44,6 +44,8 @@ android {
         checkReleaseBuilds = true
         htmlReport = true
         sarifReport = true
+        // Dependencies are deliberately pinned and updated through reviewed release work.
+        disable += "GradleDependency"
     }
 
     buildFeatures { compose = true }
