@@ -13,7 +13,7 @@ class TimeIntegrityTest {
     @Test fun sameBootUsesMonotonicElapsedTime() {
         val now = ClockSnapshot(wall.plusSeconds(120), 130_000, 7)
         assertEquals(DeadlineState.ACTIVE, TimeIntegrity.evaluate(anchor, duration, now))
-        assertEquals(480, TimeIntegrity.remaining(anchor, duration, now)?.seconds)
+        assertEquals(480L, TimeIntegrity.remaining(anchor, duration, now)?.seconds)
     }
 
     @Test fun detectsWallClockRollbackOnSameBoot() {
