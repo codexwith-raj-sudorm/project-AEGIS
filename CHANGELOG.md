@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.0 — 2026-09-14
+
+- Add Android lint with warnings treated as CI failures.
+- Add optimized R8 and resource-shrunk release builds.
+- Generate release AAB, obfuscation mapping, lint reports, and Gradle wrapper artifacts in CI.
+- Separate the debug application ID from production installs.
+- Add release keep rules for Android components, ML Kit, and PDF processing.
+
 ## 0.18.0 — 2026-09-14
 
 - Add scroll-safe, system-inset-aware, and keyboard-aware profile, activation, recovery, and gate layouts.
