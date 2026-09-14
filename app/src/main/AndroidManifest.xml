@@ -27,7 +27,7 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:launchMode="singleTask"
-            android:resizeableActivity="false" />
+            android:resizeableActivity="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true">
