@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,7 +33,7 @@ import java.time.Instant
 @Composable
 fun RecoveryCodeScreen(code: String, onConfirmed: () -> Unit) {
     var copiedConfirmation by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("> OWNER_RECOVERY_CODE")
         Text("SAVE THIS CODE OUTSIDE THE DEVICE. IT IS SHOWN ONCE.")
         Text(code)
@@ -55,7 +59,7 @@ fun SessionExitScreen(store: AegisStore, onEnded: () -> Unit, onBack: () -> Unit
             delay(1_000); nowMillis = System.currentTimeMillis()
         }
     }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("> CONSCIOUS_OVERRIDE")
         Text(status)
         when (exitPolicy) {

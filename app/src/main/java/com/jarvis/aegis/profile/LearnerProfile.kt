@@ -15,6 +15,7 @@ data class LearnerProfile(
     val curriculum: String = "Custom",
     val subjects: Set<String> = setOf("Mathematics"),
     val motivation: MotivationProfile = MotivationProfile.REFLECTIVE,
+    val commitmentMessage: String = "",
 ) {
     val allowedMotivations: Set<MotivationProfile>
         get() = if (ageBand == AgeBand.ADULT) MotivationProfile.entries.toSet()

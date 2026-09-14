@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,7 +60,10 @@ fun ActivationScreen(
     }
     val phraseMatches = phraseEntry.trim().equals(phrase, ignoreCase = true)
     val recoveryMatches = recoveryEntry.trim() == recoveryCode
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text("> FINAL_AUTHORIZATION // ${if (policy.mode == SessionMode.EXTREME) "HARD" else policy.mode.name}")
         Text("TARGETS: ${policy.targetPackages.size}")
         Text("DURATION: ${policy.duration.toMinutes()} MINUTES")

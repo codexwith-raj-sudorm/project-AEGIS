@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.18.0 — 2026-09-14
+
+- Add scroll-safe, system-inset-aware, and keyboard-aware profile, activation, recovery, and gate layouts.
+- Enforce 56 dp minimum primary action targets for touch accessibility.
+- Add screen-reader live-region announcements for gate status and cooldown changes.
+- Add accountability-profile previews and encrypted user-authored future-self commitments.
+- Enforce age-safe motivation fallback immediately when the learner age band changes.
+- Show all motivation and age choices in narrow-screen-safe vertical layouts.
+
 ## 0.17.0 — 2026-09-14
 
 - Hide third-party overlay windows above the challenge gate on Android 12+ while retaining Android accessibility services.

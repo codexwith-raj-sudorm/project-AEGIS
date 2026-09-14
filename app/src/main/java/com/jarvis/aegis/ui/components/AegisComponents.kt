@@ -2,6 +2,7 @@ package com.jarvis.aegis.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -17,7 +18,7 @@ import com.jarvis.aegis.ui.theme.AegisWhite
 @Composable
 fun AegisButton(label: String, onClick: () -> Unit, accent: Boolean = false, enabled: Boolean = true) {
     Button(
-        onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(),
+        onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
         shape = RectangleShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (accent) AegisPurple else AegisWhite,
@@ -29,7 +30,7 @@ fun AegisButton(label: String, onClick: () -> Unit, accent: Boolean = false, ena
 @Composable
 fun AegisOutlineButton(label: String, onClick: () -> Unit) {
     OutlinedButton(
-        onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = RectangleShape,
+        onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = RectangleShape,
         border = BorderStroke(2.dp, AegisWhite),
     ) { Text(label) }
 }

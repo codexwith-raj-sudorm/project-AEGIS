@@ -47,6 +47,7 @@ class AegisStore(context: Context) {
         put("curriculum", profile.curriculum)
         put("subjects", JSONArray(profile.subjects.toList()))
         put("motivation", profile.motivation.name)
+        put("commitmentMessage", profile.commitmentMessage.take(280))
     }.toString())
 
     fun profile(): LearnerProfile = runCatching {
@@ -58,6 +59,7 @@ class AegisStore(context: Context) {
             curriculum = json.optString("curriculum", "Custom"),
             subjects = json.optJSONArray("subjects")?.toStringSet() ?: setOf("Mathematics"),
             motivation = MotivationProfile.valueOf(json.optString("motivation", MotivationProfile.REFLECTIVE.name)),
+            commitmentMessage = json.optString("commitmentMessage").take(280),
         ).let { it.copy(motivation = it.motivation.takeIf(it.allowedMotivations::contains) ?: MotivationProfile.REFLECTIVE) }
     }.getOrElse { LearnerProfile() }
 
